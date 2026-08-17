@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Provisions — Setup</title>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css?v=1">
+</head>
+<body>
+
+<header class="app-header">
+  <a class="brand" href="index.html" aria-label="Provisions — Dashboard" title="Provisions"></a>
+  <nav class="app-nav">
+    <a href="index.html" title="Dashboard"><span class="rail-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></span><span class="rail-label">Dashboard</span></a>
+    <a href="setup.html" class="active" title="Setup"><span class="rail-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2.2"/><circle cx="7" cy="17" r="2.2"/></svg></span><span class="rail-label">Setup</span></a>
+  </nav>
+</header>
+
+<main>
+  <h1>Sheet Setup</h1>
+  <p class="sub">Creates any missing tabs and header rows in your spreadsheet — run this once, or any time you add a new tool. Safe to re-run: it never overwrites a tab that already has a header row.</p>
+
+  <div id="signedOutNotice" class="card" style="display:none;">
+    <span class="badge off">Not signed in</span>
+    <p style="font-size:13px; color:var(--muted); margin-bottom:0;">Go to the <a href="index.html">Dashboard</a> to sign in — your session will carry over here.</p>
+  </div>
+
+  <div class="card" id="setupCard" style="display:none;">
+    <button type="button" id="runBtn">Check &amp; create tabs</button>
+    <div id="status" class="status-line"></div>
+  </div>
+
+  <div id="tabsList"></div>
+</main>
+
+<script src="js/config.js?v=1"></script>
+<script src="js/sheets.js?v=1"></script>
+<script>
+  // Data model:
+  //   Products   — the item master. CODE is the business's own SKU, not a
+  //                generated ID, since that's how the team already refers
+  //                to stock. CUT FROM / CUT LIFE / PACK LIFE support
+  //                cut-to-order items (e.g. a wheel of cheese cut to pieces).
+  //   Prices     — per-customer-tier price list, kept off Products because
+  //                the same product sells at different prices per tier
+  //                (mirrors the Suppliers/SupplierIngredients split).
+  //   Suppliers  — who deliveries come from.
+  //   Customers  — who orders go to; PRICE TIER picks which Prices row
+  //                applies. Delivery fields are placeholders for the
+  //                later route-suggestion feature.
+  //   Deliveries — append-only goods-in log. Each row is one batch/lot
+  //                arriving: BATCH/LOT NUMBER + BEST BEFORE DATE are what
+  //                let stock be tracked and allocated down to a specific
+  //                lot later, and QTY RECEIVED is the stock-IN event.
+  //   Orders / OrderLines — a customer order and its line items.
+  //   Allocations — links an order line to a specific delivered batch/lot
+  //                and quantity. This is the stock-OUT event. Real-time
+  //                availability = SUM(Deliveries.qty) - SUM(Allocations.qty)
+  //                per product/batch — computed, not stored, so concurrent
+  //                edits from the warehouse team can't corrupt a running
+  //                total. Picking/cutting/packing lists are generated from
+  //                Orders + OrderLines + Allocations + Products.
+  const REQUIRED_TABS = [
+    {
+      title: 'Products',
+      headers: ['CODE','NAME','CATEGORY','SUPPLIER','PRODUCER','CHILLED','UNIT TYPE','NOMINAL WEIGHT','COST','LANDED COST','CUT FROM','CUT LIFE DAYS','PACK LIFE DAYS','ACTIVE','NOTES']
+    },
+    {
+      title: 'Prices',
+      headers: ['ID','PRODUCT CODE','TIER','PRICE']
+    },
+    {
+      title: 'Suppliers',
+      headers: ['ID','NAME','CONTACT','NOTES']
+    },
+    {
+      title: 'Customers',
+      headers: ['ID','NAME','PRICE TIER','CONTACT','DELIVERY ADDRESS','DELIVERY NOTES']
+    },
+    {
+      title: 'Deliveries',
+      headers: ['ID','DATE RECEIVED','SUPPLIER','PRODUCT CODE','BATCH/LOT NUMBER','BEST BEFORE DATE','QTY RECEIVED','UNIT','NOTES']
+    },
+    {
+      title: 'Orders',
+      headers: ['ID','DATE','CUSTOMER','DELIVERY DATE','STATUS','NOTES']
+    },
+    {
+      title: 'OrderLines',
+      headers: ['ID','ORDER ID','PRODUCT CODE','QTY ORDERED','UNIT','STATUS','NOTES']
+    },
+    {
+      title: 'Allocations',
+      headers: ['ID','ORDER LINE ID','PRODUCT CODE','BATCH/LOT NUMBER','QTY ALLOCATED','ALLOCATED DATE']
+    }
+  ];
+
+  const status = document.getElementById('status');
+  let token = null;
+
+  function setStatus(msg, kind) {
+    status.textContent = msg;
+    status.className = 'status-line' + (kind ? ' ' + kind : '');
+  }
+
+  function requireAuth() {
+    const cfg = getStoredConfig();
+    token = tryResumeSession();
+    if (!token || !cfg.spreadsheetId) {
+      document.getElementById('signedOutNotice').style.display = 'block';
+      document.getElementById('setupCard').style.display = 'none';
+      return false;
+    }
+    document.getElementById('signedOutNotice').style.display = 'none';
+    document.getElementById('setupCard').style.display = 'block';
+    return true;
+  }
+
+  function badge(text, ok) {
+    return `<span class="badge${ok ? '' : ' off'}">${text}</span>`;
+  }
+
+  function renderTabsList(rows) {
+    const container = document.getElementById('tabsList');
+    container.innerHTML = `
+      <h2>Required tabs</h2>
+      <div class="card">
+        <table>
+          <thead><tr><th>Tab</th><th>Status</th><th>Columns</th></tr></thead>
+          <tbody>
+            ${rows.map(r => `
+              <tr>
+                <td><strong>${r.title}</strong></td>
+                <td>${r.statusBadge}</td>
+                <td style="color:var(--muted); font-size:12px;">${r.headers.join(' · ')}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  function renderPending() {
+    renderTabsList(REQUIRED_TABS.map(t => ({ ...t, statusBadge: badge('Not checked yet', false) })));
+  }
+
+  function colLetterLocal(n) {
+    let s = '';
+    while (n > 0) {
+      const rem = (n - 1) % 26;
+      s = String.fromCharCode(65 + rem) + s;
+      n = Math.floor((n - 1) / 26);
+    }
+    return s;
+  }
+
+  async function runSetup() {
+    if (!requireAuth()) return;
+    const cfg = getStoredConfig();
+    setStatus('Checking existing tabs...');
+
+    let existingTabs;
+    try {
+      existingTabs = await sheetsGetTabs(cfg.spreadsheetId, token);
+    } catch (err) {
+      setStatus('Error reading spreadsheet: ' + err.message, 'error');
+      return;
+    }
+
+    const existingTitles = new Set(existingTabs.map(t => t.title));
+    const missing = REQUIRED_TABS.filter(t => !existingTitles.has(t.title));
+
+    if (missing.length) {
+      setStatus(`Creating ${missing.length} missing tab(s): ${missing.map(t => t.title).join(', ')}...`);
+      try {
+        const requests = missing.map(t => ({ addSheet: { properties: { title: t.title } } }));
+        const result = await sheetsBatchUpdate(cfg.spreadsheetId, requests, token);
+        result.replies.forEach((reply, i) => {
+          existingTabs.push({ sheetId: reply.addSheet.properties.sheetId, title: missing[i].title });
+        });
+      } catch (err) {
+        setStatus('Error creating tabs: ' + err.message, 'error');
+        return;
+      }
+    }
+
+    const results = [];
+    for (const tab of REQUIRED_TABS) {
+      const wasMissing = missing.some(m => m.title === tab.title);
+      const meta = existingTabs.find(t => t.title === tab.title);
+      let statusBadge;
+      try {
+        const endCol = colLetterLocal(tab.headers.length);
+        const firstRow = await sheetsGet(cfg.spreadsheetId, `${tab.title}!A1:${endCol}1`, token);
+        const existingLen = firstRow.length ? firstRow[0].filter(c => (c || '').trim() !== '').length : 0;
+        const hasHeader = existingLen > 0;
+
+        // Write the header when the tab is empty, OR extend it when an older,
+        // shorter header is present. Writing the canonical header row is
+        // safe and idempotent.
+        if (!hasHeader || existingLen < tab.headers.length) {
+          await sheetsUpdateRange(cfg.spreadsheetId, `${tab.title}!A1:${endCol}1`, [tab.headers], token);
+          await sheetsBatchUpdate(cfg.spreadsheetId, [{
+            repeatCell: {
+              range: { sheetId: meta.sheetId, startRowIndex: 0, endRowIndex: 1 },
+              cell: { userEnteredFormat: { textFormat: { bold: true } } },
+              fields: 'userEnteredFormat.textFormat.bold'
+            }
+          }], token);
+          const label = !hasHeader
+            ? (wasMissing ? 'Created + headers added' : 'Headers added')
+            : 'Headers updated';
+          statusBadge = badge(label, true);
+        } else {
+          statusBadge = badge(wasMissing ? 'Created' : 'Already set up', true);
+        }
+      } catch (err) {
+        statusBadge = badge('Error: ' + err.message, false);
+      }
+      results.push({ ...tab, statusBadge });
+      renderTabsList(results.concat(REQUIRED_TABS.slice(results.length).map(t => ({ ...t, statusBadge: badge('Pending...', false) }))));
+    }
+
+    setStatus('Setup complete.', 'ok');
+  }
+
+  document.getElementById('runBtn').addEventListener('click', runSetup);
+
+  window.addEventListener('load', () => {
+    renderPending();
+    requireAuth();
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Provisions — Dashboard</title>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css?v=1">
+</head>
+<body>
+
+<header class="app-header">
+  <a class="brand" href="index.html" aria-label="Provisions — Dashboard" title="Provisions"></a>
+  <nav class="app-nav">
+    <a href="index.html" class="active" title="Dashboard"><span class="rail-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></span><span class="rail-label">Dashboard</span></a>
+    <a href="setup.html" title="Setup"><span class="rail-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2.2"/><circle cx="7" cy="17" r="2.2"/></svg></span><span class="rail-label">Setup</span></a>
+  </nav>
+</header>
+
+<main>
+  <h1>Dashboard</h1>
+  <p class="sub">Internal stock &amp; order operations tool for Provisions UK.</p>
+
+  <div class="card">
+    <div id="authArea">
+      <label style="margin-top:0;">Google OAuth Client ID</label>
+      <input id="clientId" placeholder="XXXXXXXXX.apps.googleusercontent.com">
+      <label>Spreadsheet ID</label>
+      <input id="spreadsheetId" placeholder="Found in the sheet's URL between /d/ and /edit">
+      <button id="saveConfigBtn" type="button">Save config</button>
+      <button id="signInBtn" type="button" class="secondary">Sign in with Google</button>
+    </div>
+    <div id="status" class="status-line"></div>
+  </div>
+
+  <h2>Tools</h2>
+  <div class="card-grid">
+    <a class="nav-card" href="setup.html">
+      <div class="title">Sheet Setup</div>
+      <div class="desc">Creates the required tabs and header rows in your spreadsheet automatically. Run this first.</div>
+    </a>
+  </div>
+
+  <h2>What's next</h2>
+  <div class="card">
+    <p style="margin:0; font-size:13px; color:var(--muted); line-height:1.6;">
+      After running <strong>Setup</strong>, the next tools to build are: <strong>Deliveries</strong> (quick goods-in
+      entry — supplier, batch/lot number, best-before date, quantity), a <strong>Stock</strong> view (real-time
+      availability computed from deliveries minus allocations), <strong>Orders</strong> (customer orders with
+      stock allocated down to a specific batch), and <strong>Picking / Cutting / Packing</strong> lists generated
+      from allocated orders. Customer delivery-routing comes later, once customer records exist.
+    </p>
+  </div>
+</main>
+
+<script src="js/config.js?v=1"></script>
+<script>
+  const status = document.getElementById('status');
+  const signInBtn = document.getElementById('signInBtn');
+  let tokenClient = null;
+
+  function setStatus(msg, kind) {
+    status.textContent = msg;
+    status.className = 'status-line' + (kind ? ' ' + kind : '');
+  }
+
+  function refreshSignedInUI() {
+    const token = tryResumeSession();
+    if (token) {
+      setStatus('Signed in — session active.', 'ok');
+    }
+  }
+
+  window.addEventListener('load', () => {
+    const cfg = getStoredConfig();
+    document.getElementById('clientId').value = cfg.clientId;
+    document.getElementById('spreadsheetId').value = cfg.spreadsheetId;
+    refreshSignedInUI();
+  });
+
+  document.getElementById('saveConfigBtn').addEventListener('click', () => {
+    const clientId = document.getElementById('clientId').value.trim();
+    const spreadsheetId = document.getElementById('spreadsheetId').value.trim();
+    if (!clientId || !spreadsheetId) { setStatus('Enter both fields before saving.', 'error'); return; }
+    saveStoredConfig(clientId, spreadsheetId);
+    setStatus('Config saved for this browser.', 'ok');
+  });
+
+  signInBtn.addEventListener('click', () => {
+    const clientId = document.getElementById('clientId').value.trim();
+    if (!clientId) { setStatus('Paste your OAuth Client ID first.', 'error'); return; }
+    tokenClient = initGoogleAuth({
+      clientId,
+      onToken: () => setStatus('Signed in — session active.', 'ok'),
+      onError: (err) => setStatus('Sign-in error: ' + err, 'error')
+    });
+    tokenClient.requestAccessToken();
+  });
+</script>
+</body>
+</html>
