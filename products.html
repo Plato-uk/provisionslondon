@@ -36,13 +36,37 @@
     Not signed in — go to the <a href="index.html" style="color:inherit; text-decoration:underline;">Dashboard</a> to sign in. Your session will carry over here.
   </div>
 
+  <div class="panel" id="bulkPhotosPanel" style="display:none;">
+    <div class="panel-b" style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+      <button type="button" class="btn ghost sm" id="bulkPhotosBtn" style="margin:0;">Bulk upload photos</button>
+      <span class="mono" style="font-size:12px; color:var(--steel);">Select image files named after product codes (e.g. CCS050.jpg) — matched files upload to Drive and are set as that product's photo.</span>
+    </div>
+  </div>
+
   <div id="productsMount"></div>
 </main>
+
+<dialog id="photosDialog">
+  <div class="dlg-h">Bulk upload photos</div>
+  <div class="dlg-b">
+    <div class="field">
+      <label>Image files</label>
+      <input type="file" id="photosFileInput" multiple accept="image/*">
+    </div>
+    <div id="photosPreview"></div>
+    <div id="photosStatus" class="mono" style="margin-top:10px; font-size:12.5px; color:var(--steel);"></div>
+  </div>
+  <div class="dlg-f">
+    <button type="button" class="btn ghost" id="photosCloseBtn">Close</button>
+    <button type="button" class="btn" id="photosUploadBtn">Upload</button>
+  </div>
+</dialog>
 
 <script src="js/config.js?v=1"></script>
 <script src="js/sheets.js?v=1"></script>
 <script src="js/util.js?v=1"></script>
 <script src="js/dialog-guard.js?v=1"></script>
+<script src="js/drive.js?v=1"></script>
 <script src="js/crud-page.js?v=7"></script>
 <script>
   function requireAuth() {
@@ -50,6 +74,7 @@
     const token = tryResumeSession();
     const ok = !!(token && cfg.spreadsheetId);
     document.getElementById('signedOutNotice').style.display = ok ? 'none' : 'block';
+    document.getElementById('bulkPhotosPanel').style.display = ok ? 'block' : 'none';
     return ok;
   }
 
@@ -60,7 +85,7 @@
       mount: '#productsMount',
       title: 'Products',
       tab: 'Products',
-      headers: ['Product code','Product name','Category','Default supplier','Producer','Storage','Ordering unit','Units per case','Pricing basis','Nominal weight (kg)','Cost price £','Landed cost £','GP at list','Tolerance band (%)','Cut from (code)','Cut shelf life (days)','Part-cut shelf life (days)','Target pack weight (kg)','Xero item code','Xero account code','VAT rate','Active','Sellable','Notes'],
+      headers: ['Product code','Product name','Category','Default supplier','Producer','Storage','Ordering unit','Units per case','Pricing basis','Nominal weight (kg)','Cost price £','Landed cost £','GP at list','Tolerance band (%)','Cut from (code)','Cut shelf life (days)','Part-cut shelf life (days)','Target pack weight (kg)','Xero item code','Xero account code','VAT rate','Active','Sellable','Notes','Photo URL'],
       autoId: null,
       fields: [
         { key: 'Product code', label: 'Product code', type: 'text', required: true, placeholder: 'e.g. CCS050' },
@@ -86,10 +111,135 @@
         { key: 'VAT rate', label: 'VAT rate', type: 'select', options: ['20% (VAT on income)', 'Zero rated income'] },
         { key: 'Active', label: 'Active', type: 'checkbox', trueValue: 'Yes', falseValue: 'No' },
         { key: 'Sellable', label: 'Sellable', type: 'checkbox', trueValue: 'Yes', falseValue: 'No' },
-        { key: 'Notes', label: 'Notes', type: 'textarea' }
+        { key: 'Notes', label: 'Notes', type: 'textarea' },
+        { key: 'Photo URL', label: 'Photo', type: 'image', placeholder: 'https://... — usually set via Bulk upload photos' }
       ]
     });
+
+    initBulkPhotosUpload();
   });
+
+  // Bulk photo upload: match each selected file's name (minus extension) to
+  // a Products.Product code, upload matched files to the app's Drive photos
+  // folder (js/drive.js), and write the resulting URL into that row's
+  // Photo URL cell directly via the Sheets API — this bypasses the crud-page
+  // add/edit dialog entirely since it's writing many rows at once.
+  function initBulkPhotosUpload() {
+    const dialog = document.getElementById('photosDialog');
+    const fileInput = document.getElementById('photosFileInput');
+    const preview = document.getElementById('photosPreview');
+    const statusEl = document.getElementById('photosStatus');
+    const openBtn = document.getElementById('bulkPhotosBtn');
+    const closeBtn = document.getElementById('photosCloseBtn');
+    const uploadBtn = document.getElementById('photosUploadBtn');
+    let selectedFiles = [];
+
+    function setStatus(msg, kind) {
+      statusEl.textContent = msg;
+      statusEl.style.color = kind === 'error' ? 'var(--crit)' : kind === 'ok' ? 'var(--ok)' : 'var(--steel)';
+    }
+
+    function baseName(filename) {
+      return filename.replace(/\.[^.]+$/, '').trim();
+    }
+
+    function renderPreview(codesUC) {
+      if (!selectedFiles.length) { preview.innerHTML = ''; return; }
+      preview.innerHTML = `<table style="width:100%; font-size:12.5px;"><tbody>` + selectedFiles.map(f => {
+        const code = baseName(f.name);
+        const matched = codesUC.has(code.toUpperCase());
+        return `<tr><td>${escapeHtml(f.name)}</td><td class="mono">${escapeHtml(code)}</td><td>${matched ? '<span class="tag t-ok">Match</span>' : '<span class="tag t-crit">No match</span>'}</td></tr>`;
+      }).join('') + `</tbody></table>`;
+    }
+
+    openBtn.addEventListener('click', () => {
+      selectedFiles = [];
+      fileInput.value = '';
+      preview.innerHTML = '';
+      setStatus('');
+      dialog.showModal();
+    });
+    closeBtn.addEventListener('click', () => dialog.close());
+    dialog.addEventListener('click', (e) => { if (e.target === dialog) dialog.close(); });
+
+    fileInput.addEventListener('change', async () => {
+      selectedFiles = [...fileInput.files];
+      if (!selectedFiles.length) { preview.innerHTML = ''; setStatus(''); return; }
+      setStatus('Checking product codes...');
+      try {
+        const cfg = getStoredConfig();
+        const token = tryResumeSession();
+        if (!token || !cfg.spreadsheetId) throw new Error('Sign in on the Dashboard first.');
+        const rows = await sheetsGet(cfg.spreadsheetId, 'Products!A:A', token);
+        const codesUC = new Set(rows.slice(1).map(r => (r[0] || '').toString().trim().toUpperCase()).filter(Boolean));
+        renderPreview(codesUC);
+        const matchedCount = selectedFiles.filter(f => codesUC.has(baseName(f.name).toUpperCase())).length;
+        setStatus(`${matchedCount} of ${selectedFiles.length} file(s) match a product code.`);
+      } catch (err) {
+        setStatus('Error checking product codes: ' + err.message, 'error');
+      }
+    });
+
+    uploadBtn.addEventListener('click', async () => {
+      if (!selectedFiles.length) { setStatus('Choose image files first.', 'error'); return; }
+      const cfg = getStoredConfig();
+      const token = tryResumeSession();
+      if (!token || !cfg.spreadsheetId) { setStatus('Sign in on the Dashboard first.', 'error'); return; }
+
+      uploadBtn.disabled = true;
+      try {
+        setStatus('Reading Products sheet...');
+        const rows = await sheetsGet(cfg.spreadsheetId, 'Products!A:Z', token);
+        const header = rows[0] || [];
+        const codeIdx = header.indexOf('Product code');
+        const photoIdx = header.indexOf('Photo URL');
+        if (codeIdx === -1 || photoIdx === -1) throw new Error('Run Setup first — Products is missing the Photo URL column.');
+        const photoCol = colLetter(photoIdx + 1);
+
+        const codeToRow = new Map();      // exact Product code -> sheet row number
+        const codeToRowUC = new Map();    // uppercased fallback, for forgiving filename matches
+        rows.slice(1).forEach((r, i) => {
+          const code = (r[codeIdx] || '').toString().trim();
+          if (!code) return;
+          const rowNumber = i + 2;
+          codeToRow.set(code, rowNumber);
+          codeToRowUC.set(code.toUpperCase(), rowNumber);
+        });
+
+        setStatus('Preparing Drive folder...');
+        const folderId = await driveEnsureFolder(token);
+
+        let uploaded = 0;
+        const unmatched = [];
+        const failed = [];
+        for (const file of selectedFiles) {
+          const rawCode = baseName(file.name);
+          const rowNumber = codeToRow.get(rawCode) ?? codeToRowUC.get(rawCode.toUpperCase());
+          if (!rowNumber) { unmatched.push(file.name); continue; }
+          setStatus(`Uploading ${file.name} (${uploaded + unmatched.length + failed.length + 1}/${selectedFiles.length})...`);
+          try {
+            const url = await driveUploadProductPhoto(folderId, rawCode, file, token);
+            await sheetsUpdateRange(cfg.spreadsheetId, `Products!${photoCol}${rowNumber}:${photoCol}${rowNumber}`, [[url]], token, 'USER_ENTERED');
+            uploaded++;
+          } catch (err) {
+            failed.push(`${file.name}: ${err.message}`);
+          }
+        }
+
+        let summary = `Uploaded ${uploaded} of ${selectedFiles.length}.`;
+        if (unmatched.length) summary += ` No matching product code for: ${unmatched.join(', ')}.`;
+        if (failed.length) summary += ` Failed: ${failed.join('; ')}.`;
+        setStatus(summary, (failed.length || unmatched.length) ? 'error' : 'ok');
+
+        const reloadBtn = document.getElementById('Products_reload');
+        if (reloadBtn) reloadBtn.click();
+      } catch (err) {
+        setStatus('Error: ' + err.message, 'error');
+      } finally {
+        uploadBtn.disabled = false;
+      }
+    });
+  }
 </script>
 </body>
 </html>

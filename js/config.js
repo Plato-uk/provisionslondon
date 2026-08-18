@@ -45,7 +45,11 @@ function clearToken() {
 function initGoogleAuth({ clientId, onToken, onError }) {
   return google.accounts.oauth2.initTokenClient({
     client_id: clientId,
-    scope: 'https://www.googleapis.com/auth/spreadsheets',
+    // drive.file is a non-sensitive, restricted-access scope: it only ever
+    // sees files this app itself creates (the product photos folder and the
+    // images in it), never the user's wider Drive. Needed for the Products
+    // photo bulk-upload feature — see js/drive.js.
+    scope: 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.file',
     callback: (resp) => {
       if (resp.error) { onError && onError(resp.error); return; }
       storeToken(resp.access_token, resp.expires_in);

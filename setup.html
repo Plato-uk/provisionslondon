@@ -58,7 +58,10 @@
   //                codes + VAT rate for accounting sync. No per-tier selling
   //                price lives here — Customers.Price list is a free-standing
   //                tag (Standard / P2P / Selfridges), not yet linked to a
-  //                specific price on the product.
+  //                specific price on the product. Photo URL is written by the
+  //                Products page's bulk photo upload tool (js/drive.js) —
+  //                it's a plain URL column so it also accepts a manually
+  //                pasted image link.
   //   Suppliers  — keyed by supplier name (no generated ID). Import/dispatch
   //                rates and delivery-day fields support future landed-cost
   //                and ordering-schedule automation.
@@ -89,7 +92,7 @@
   const REQUIRED_TABS = [
     {
       title: 'Products',
-      headers: ['Product code','Product name','Category','Default supplier','Producer','Storage','Ordering unit','Units per case','Pricing basis','Nominal weight (kg)','Cost price £','Landed cost £','GP at list','Tolerance band (%)','Cut from (code)','Cut shelf life (days)','Part-cut shelf life (days)','Target pack weight (kg)','Xero item code','Xero account code','VAT rate','Active','Sellable','Notes']
+      headers: ['Product code','Product name','Category','Default supplier','Producer','Storage','Ordering unit','Units per case','Pricing basis','Nominal weight (kg)','Cost price £','Landed cost £','GP at list','Tolerance band (%)','Cut from (code)','Cut shelf life (days)','Part-cut shelf life (days)','Target pack weight (kg)','Xero item code','Xero account code','VAT rate','Active','Sellable','Notes','Photo URL']
     },
     {
       title: 'Suppliers',

@@ -29,6 +29,7 @@
 //     { key:'CATEGORY', label:'Category', type:'select', options:[...] },
 //     { key:'SUPPLIER', label:'Supplier', type:'ref', refTab:'Suppliers', refValue:'NAME' },
 //     { key:'COST', label:'Cost', type:'number', format:'currency' },
+//     { key:'PHOTO', label:'Photo', type:'image' },             // plain URL input; renders as a table thumbnail
 //   ],
 //   sample: [ [...row values in header order, 'auto' for the id col...], ... ]
 // }
@@ -162,6 +163,8 @@ async function initCrudTable(config) {
       return `<option value="${escapeHtml(opt.value)}">${escapeHtml(opt.label)}</option>`;
     }).join('')}</select>`;
     if (f.type === 'ref') return `<select id="${id}"><option value="">Loading…</option></select>`;
+    // 'image' falls through to the default plain text input below — it's
+    // just a URL field; only its table display differs (see displayCell).
     return `<input id="${id}" placeholder="${escapeHtml(f.placeholder || '')}">`;
   }
 
@@ -250,6 +253,10 @@ async function initCrudTable(config) {
     if (field && field.format === 'currency') {
       const n = parseFloat(value);
       return isNaN(n) ? '' : `£${n.toFixed(2)}`;
+    }
+    if (field && field.type === 'image') {
+      const url = (value || '').toString().trim();
+      return url ? `<img src="${escapeHtml(url)}" alt="" loading="lazy" style="width:32px;height:32px;object-fit:cover;border-radius:4px;vertical-align:middle;">` : '';
     }
     return escapeHtml(value);
   }
