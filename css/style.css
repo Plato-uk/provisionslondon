@@ -76,6 +76,7 @@ td.num,th.num{text-align:right;font-family:'Roboto Mono',monospace;font-variant-
 .btn.sm{padding:5px 10px;font-size:12px}
 label{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--steel);font-weight:600;margin-bottom:4px}
 input,select{width:100%;padding:7px 9px;border:1px solid var(--line);border-radius:4px;background:#fff}
+input:disabled,select:disabled{background:#F0F2F4;color:var(--steel);cursor:not-allowed}
 input.mono{font-family:'Roboto Mono',monospace}
 .field{margin-bottom:11px}
 .inline{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap}

@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=Roboto+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/style.css?v=5">
+<link rel="stylesheet" href="css/style.css?v=6">
 <link rel="icon" type="image/png" href="img/favicon.png">
 </head>
 <body>
@@ -55,7 +55,7 @@
 <script src="js/sheets.js?v=1"></script>
 <script src="js/util.js?v=1"></script>
 <script src="js/dialog-guard.js?v=1"></script>
-<script src="js/crud-page.js?v=3"></script>
+<script src="js/crud-page.js?v=4"></script>
 <script>
   function requireAuth() {
     const cfg = getStoredConfig();
@@ -65,10 +65,10 @@
     return ok;
   }
 
-  window.addEventListener('load', () => {
+  window.addEventListener('load', async () => {
     if (!requireAuth()) return;
 
-    initCrudTable({
+    await initCrudTable({
       mount: '#ordersMount',
       title: 'Orders',
       tab: 'Orders',
@@ -87,7 +87,7 @@
       ]
     });
 
-    initCrudTable({
+    await initCrudTable({
       mount: '#orderLinesMount',
       title: 'OrderLines',
       tab: 'OrderLines',
@@ -108,7 +108,7 @@
       ]
     });
 
-    initCrudTable({
+    await initCrudTable({
       mount: '#allocationsMount',
       title: 'Allocations',
       tab: 'Allocations',
@@ -126,7 +126,88 @@
         ['', 'OL002', 'CCS041', 'F-1190', 1, '2026-08-17']
       ]
     });
+
+    setupAllocationFefoHelper();
   });
+
+  // FEFO allocation helper: once you pick an order line, the Product code
+  // field is derived and locked (an allocation must match its order line's
+  // product — it's never picked independently), and Batch/lot is narrowed
+  // to just that product's in-stock batches, sorted earliest-best-before
+  // first, each annotated with how much of it is actually left. Qty
+  // allocated is pre-filled with whatever's still outstanding on the line,
+  // capped to what the suggested batch has — editable, just a starting point.
+  function setupAllocationFefoHelper() {
+    const productSel = document.querySelector('#Allocations_f_PRODUCT_CODE');
+    const batchSel = document.querySelector('#Allocations_f_BATCH_LOT_NUMBER');
+    const orderLineSel = document.querySelector('#Allocations_f_ORDER_LINE_ID');
+    const qtySel = document.querySelector('#Allocations_f_QTY_ALLOCATED');
+    if (!productSel || !batchSel || !orderLineSel || !qtySel) return;
+
+    productSel.disabled = true; // always derived from the order line, never picked directly
+
+    function toObjs(rows) {
+      if (!rows.length) return [];
+      const [head, ...rest] = rows;
+      return rest.map(r => { const o = {}; head.forEach((h, i) => { o[h] = r[i] ?? ''; }); return o; });
+    }
+
+    async function onOrderLineChange() {
+      const lineId = orderLineSel.value;
+      if (!lineId) {
+        productSel.value = '';
+        batchSel.innerHTML = '<option value="">Pick an order line first</option>';
+        return;
+      }
+      batchSel.innerHTML = '<option value="">Loading…</option>';
+      const cfg = getStoredConfig();
+      const token = tryResumeSession();
+      if (!token || !cfg.spreadsheetId) return;
+      try {
+        const [lineRows, deliveryRows, allocRows] = await Promise.all([
+          sheetsGet(cfg.spreadsheetId, 'OrderLines!A:Z', token),
+          sheetsGet(cfg.spreadsheetId, 'Deliveries!A:Z', token),
+          sheetsGet(cfg.spreadsheetId, 'Allocations!A:Z', token)
+        ]);
+        const line = toObjs(lineRows).find(l => l.ID === lineId);
+        if (!line) { batchSel.innerHTML = '<option value="">Order line not found</option>'; return; }
+
+        const productCode = line['PRODUCT CODE'];
+        productSel.value = productCode;
+
+        const allocs = toObjs(allocRows);
+        const alreadyOnLine = allocs
+          .filter(a => a['ORDER LINE ID'] === lineId)
+          .reduce((s, a) => s + (parseFloat(a['QTY ALLOCATED']) || 0), 0);
+        const outstanding = Math.max((parseFloat(line['QTY ORDERED']) || 0) - alreadyOnLine, 0);
+
+        const batches = toObjs(deliveryRows)
+          .filter(d => d['PRODUCT CODE'] === productCode)
+          .map(d => {
+            const allocated = allocs
+              .filter(a => a['PRODUCT CODE'] === productCode && a['BATCH/LOT NUMBER'] === d['BATCH/LOT NUMBER'])
+              .reduce((s, a) => s + (parseFloat(a['QTY ALLOCATED']) || 0), 0);
+            const remaining = (parseFloat(d['QTY RECEIVED']) || 0) - allocated;
+            return { batch: d['BATCH/LOT NUMBER'], bbe: d['BEST BEFORE DATE'], remaining, unit: d.UNIT };
+          })
+          .filter(b => b.remaining > 0.0001)
+          .sort((a, b) => (a.bbe || '9999').localeCompare(b.bbe || '9999'));
+
+        if (!batches.length) {
+          batchSel.innerHTML = `<option value="">No stock available for ${escapeHtml(productCode)}</option>`;
+          return;
+        }
+        batchSel.innerHTML = batches.map((b, i) =>
+          `<option value="${escapeHtml(b.batch)}"${i === 0 ? ' selected' : ''}>${escapeHtml(b.batch)} — ${b.remaining.toFixed(2)} ${escapeHtml(b.unit)} left, BBE ${escapeHtml(b.bbe) || 'unknown'}${i === 0 ? ' (earliest — suggested)' : ''}</option>`
+        ).join('');
+        qtySel.value = Math.min(outstanding, batches[0].remaining).toFixed(2);
+      } catch (err) {
+        batchSel.innerHTML = `<option value="">Error: ${escapeHtml(err.message)}</option>`;
+      }
+    }
+
+    orderLineSel.addEventListener('change', onOrderLineChange);
+  }
 </script>
 </body>
 </html>

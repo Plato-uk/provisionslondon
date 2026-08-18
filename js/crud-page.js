@@ -1,13 +1,14 @@
-// Generic "add + remove" table bound to one Sheets tab. Every list page
-// (Products, Suppliers, Customers, Deliveries, Orders, OrderLines,
+// Generic "add + edit + remove" table bound to one Sheets tab. Every list
+// page (Products, Suppliers, Customers, Deliveries, Orders, OrderLines,
 // Allocations, Prices) configures one of these instead of hand-rolling its
-// own fetch/append/delete logic, so behaviour — including how a row gets
-// deleted (deleteDimension on its real sheet row index), and how the add
+// own fetch/append/update/delete logic, so behaviour — including how a row
+// gets deleted or overwritten (via its real sheet row index), and how the
 // form's unsaved-changes guard works — stays identical across tables.
 //
-// The add form lives in a <dialog>, opened via a toolbar button rather than
-// sitting inline on the page, with js/dialog-guard.js protecting against
-// losing in-progress input on an accidental Cancel/Escape/backdrop click.
+// Add and Edit share one <dialog>, opened via a toolbar button or a row's
+// Edit button rather than sitting inline on the page, with
+// js/dialog-guard.js protecting against losing in-progress input on an
+// accidental Cancel/Escape/backdrop click.
 //
 // config = {
 //   mount: '#el',            // container to render the panel into
@@ -16,7 +17,9 @@
 //   headers: [...],          // must match Setup's REQUIRED_TABS for this tab
 //   autoId: 'SUP' | null,    // prefix for a generated ID in column A, or null
 //                            // if column A is a user-entered natural key
-//                            // (e.g. Products.CODE)
+//                            // (e.g. Products.CODE) — that key field is
+//                            // shown but locked once editing an existing
+//                            // row, since other tabs may reference it.
 //   fields: [                // one entry per header, in header order
 //     { key:'NAME', label:'Name', type:'text', required:true },
 //     { key:'TIER', label:'Tier', type:'text', placeholder:'e.g. Standard' },
@@ -35,9 +38,12 @@ async function initCrudTable(config) {
   const { mount, title, tab, headers, autoId, fields, sample } = config;
   const root = document.querySelector(mount);
   const range = `${tab}!A:${colLetter(headers.length)}`;
+  const endCol = colLetter(headers.length);
   const singular = /ies$/.test(title) ? title.replace(/ies$/, 'y') : title.replace(/s$/, '');
   let token = null;
   let sheetId = null;
+  let rowsData = []; // data rows (no header) from the last successful load, for Edit lookups
+  let editing = null; // null = Add mode; { rowNumber, id } = editing that existing row
   const refCache = {};
 
   root.innerHTML = `
@@ -123,7 +129,7 @@ async function initCrudTable(config) {
   // in later, on each dialog open, so they're never stale.
   function renderForm() {
     form.innerHTML = `
-      <div class="dlg-h">Add ${escapeHtml(singular)}</div>
+      <div class="dlg-h" id="${tab}_dlgTitle">Add ${escapeHtml(singular)}</div>
       <div class="dlg-b">
         <div class="row">
           ${fields.map(f => `<div class="col field"><label>${escapeHtml(f.label)}${f.required ? ' *' : ''}</label>${fieldInputHtml(f)}</div>`).join('')}
@@ -132,7 +138,7 @@ async function initCrudTable(config) {
       </div>
       <div class="dlg-f">
         <button type="button" class="btn ghost" data-cancel>Cancel</button>
-        <button type="submit" class="btn">Add ${escapeHtml(singular)}</button>
+        <button type="submit" class="btn" id="${tab}_submitBtn">Add ${escapeHtml(singular)}</button>
       </div>
     `;
     resetFieldValues();
@@ -145,6 +151,27 @@ async function initCrudTable(config) {
       else if (f.type === 'date' && f.default === 'today') el.value = new Date().toISOString().slice(0, 10);
       else el.value = '';
     }
+    // The natural-key field (Products.CODE etc.) is only ever locked while
+    // editing an existing row — Add mode always starts unlocked.
+    if (!autoId) form.querySelector(`#${fid(fields[0])}`).disabled = false;
+  }
+
+  // Fills the form from an existing row's raw cell values (index-aligned to
+  // `headers`, offset by 1 when autoId owns column A). Dispatches a real
+  // 'change' event per field afterwards so page-specific logic hooked onto
+  // these inputs (e.g. the Allocations FEFO helper) reacts the same way it
+  // would to the user actually picking that value.
+  function populateFieldsFromRow(rowValues) {
+    const offset = autoId ? 1 : 0;
+    fields.forEach((f, i) => {
+      const el = form.querySelector(`#${fid(f)}`);
+      const raw = rowValues[i + offset] ?? '';
+      if (f.type === 'checkbox') el.checked = (raw || '').toString().toUpperCase() === 'TRUE';
+      else el.value = raw;
+    });
+    fields.forEach(f => {
+      form.querySelector(`#${fid(f)}`).dispatchEvent(new Event('change', { bubbles: true }));
+    });
   }
 
   async function refreshRefOptions() {
@@ -187,6 +214,7 @@ async function initCrudTable(config) {
     try {
       const rows = await sheetsGet(cfg.spreadsheetId, range, token);
       const [head, ...rest] = rows.length ? rows : [headers];
+      rowsData = rest;
       renderTable(head, rest);
       setStatus(`Loaded ${rest.length} row(s).`, 'ok');
     } catch (err) {
@@ -204,7 +232,7 @@ async function initCrudTable(config) {
     }
     tbody.innerHTML = rows.map((r, i) => {
       const cells = head.map(h => `<td>${displayCell(h, r[head.indexOf(h)])}</td>`).join('');
-      return `<tr data-row="${i + 2}">${cells}<td><button type="button" class="btn danger sm" data-del="${i + 2}">Remove</button></td></tr>`;
+      return `<tr data-row="${i + 2}">${cells}<td style="white-space:nowrap;"><button type="button" class="btn ghost sm" data-edit="${i + 2}">Edit</button> <button type="button" class="btn danger sm" data-del="${i + 2}">Remove</button></td></tr>`;
     }).join('');
   }
 
@@ -226,14 +254,19 @@ async function initCrudTable(config) {
   }
 
   tableEl.addEventListener('click', (e) => {
-    const btn = e.target.closest('button[data-del]');
-    if (btn) handleDelete(parseInt(btn.dataset.del, 10));
+    const delBtn = e.target.closest('button[data-del]');
+    if (delBtn) { handleDelete(parseInt(delBtn.dataset.del, 10)); return; }
+    const editBtn = e.target.closest('button[data-edit]');
+    if (editBtn) handleEdit(parseInt(editBtn.dataset.edit, 10));
   });
 
   renderForm();
   const guard = attachDiscardGuard(dialogEl, { scope: form });
 
-  async function openDialog() {
+  async function openAddDialog() {
+    editing = null;
+    root.querySelector(`#${tab}_dlgTitle`).textContent = `Add ${singular}`;
+    root.querySelector(`#${tab}_submitBtn`).textContent = `Add ${singular}`;
     setDlgStatus('');
     resetFieldValues();
     await refreshRefOptions();
@@ -241,7 +274,24 @@ async function initCrudTable(config) {
     guard.arm();
   }
 
-  root.querySelector(`#${tab}_addBtn`).addEventListener('click', openDialog);
+  async function handleEdit(rowNumber) {
+    const rowValues = rowsData[rowNumber - 2];
+    if (!rowValues) return;
+    editing = { rowNumber, id: rowValues[0] };
+    root.querySelector(`#${tab}_dlgTitle`).textContent = `Edit ${singular}`;
+    root.querySelector(`#${tab}_submitBtn`).textContent = 'Save changes';
+    setDlgStatus('');
+    resetFieldValues();
+    await refreshRefOptions();
+    populateFieldsFromRow(rowValues);
+    // The natural key (e.g. Products.CODE) can't be changed once other tabs
+    // may already reference it by that value.
+    if (!autoId) form.querySelector(`#${fid(fields[0])}`).disabled = true;
+    dialogEl.showModal();
+    guard.arm();
+  }
+
+  root.querySelector(`#${tab}_addBtn`).addEventListener('click', openAddDialog);
   form.querySelector('[data-cancel]').addEventListener('click', () => guard.guardedClose());
 
   form.addEventListener('submit', async (e) => {
@@ -253,19 +303,25 @@ async function initCrudTable(config) {
       if (f.required && !fieldValue(f)) { setDlgStatus(`${f.label} is required.`, 'error'); return; }
     }
 
-    setDlgStatus('Adding...');
+    const isEdit = !!editing;
+    setDlgStatus(isEdit ? 'Saving...' : 'Adding...');
     try {
-      let row;
-      if (autoId) {
-        const existing = await sheetsGet(cfg.spreadsheetId, range, token);
-        const id = nextId(existing.length ? existing : [headers], autoId);
-        row = [id, ...fields.map(fieldValue)];
+      const values = fields.map(fieldValue);
+      if (isEdit) {
+        const row = autoId ? [editing.id, ...values] : values;
+        await sheetsUpdateRange(cfg.spreadsheetId, `${tab}!A${editing.rowNumber}:${endCol}${editing.rowNumber}`, [row], token, 'USER_ENTERED');
+        setStatus(`${singular} updated.`, 'ok');
       } else {
-        row = fields.map(fieldValue);
+        let row = values;
+        if (autoId) {
+          const existing = await sheetsGet(cfg.spreadsheetId, range, token);
+          const id = nextId(existing.length ? existing : [headers], autoId);
+          row = [id, ...values];
+        }
+        await sheetsAppend(cfg.spreadsheetId, range, row, token);
+        setStatus(`${singular} added.`, 'ok');
       }
-      await sheetsAppend(cfg.spreadsheetId, range, row, token);
       dialogEl.close(); // programmatic close — the discard guard only ever intercepts 'cancel'/backdrop, never this
-      setStatus(`${singular} added.`, 'ok');
       loadRows();
     } catch (err) {
       setDlgStatus('Error: ' + err.message, 'error');
