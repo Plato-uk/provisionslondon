@@ -74,10 +74,18 @@
   //                edits from the warehouse team can't corrupt a running
   //                total. Picking/cutting/packing lists are generated from
   //                Orders + OrderLines + Allocations + Products.
+  //
+  // IMPORTANT when adding a column to an existing tab: append it to the END
+  // of that tab's headers array, never insert it in the middle. The setup
+  // below only ever rewrites row 1 (the header labels) when it detects the
+  // stored header is shorter than required — it never touches or shifts
+  // existing data rows. Appending is safe (old columns keep their old
+  // position); inserting a column in the middle silently relabels an
+  // existing column, misaligning every row's data under the new header.
   const REQUIRED_TABS = [
     {
       title: 'Products',
-      headers: ['CODE','NAME','CATEGORY','SUPPLIER','PRODUCER','CHILLED','UNIT TYPE','NOMINAL WEIGHT','COST','LANDED COST','P2P PRICE','P2B PRICE','PCS PRICE','CUT FROM','CUT LIFE DAYS','PACK LIFE DAYS','ACTIVE','NOTES']
+      headers: ['CODE','NAME','CATEGORY','SUPPLIER','PRODUCER','CHILLED','UNIT TYPE','NOMINAL WEIGHT','COST','LANDED COST','CUT FROM','CUT LIFE DAYS','PACK LIFE DAYS','ACTIVE','NOTES','P2P PRICE','P2B PRICE','PCS PRICE']
     },
     {
       title: 'Suppliers',

@@ -60,7 +60,7 @@
       mount: '#productsMount',
       title: 'Products',
       tab: 'Products',
-      headers: ['CODE','NAME','CATEGORY','SUPPLIER','PRODUCER','CHILLED','UNIT TYPE','NOMINAL WEIGHT','COST','LANDED COST','P2P PRICE','P2B PRICE','PCS PRICE','CUT FROM','CUT LIFE DAYS','PACK LIFE DAYS','ACTIVE','NOTES'],
+      headers: ['CODE','NAME','CATEGORY','SUPPLIER','PRODUCER','CHILLED','UNIT TYPE','NOMINAL WEIGHT','COST','LANDED COST','CUT FROM','CUT LIFE DAYS','PACK LIFE DAYS','ACTIVE','NOTES','P2P PRICE','P2B PRICE','PCS PRICE'],
       autoId: null,
       fields: [
         { key: 'CODE', label: 'Code', type: 'text', required: true, placeholder: 'e.g. CCS050' },
@@ -73,21 +73,21 @@
         { key: 'NOMINAL WEIGHT', label: 'Nominal weight (kg)', type: 'number' },
         { key: 'COST', label: 'Cost (£)', type: 'number' },
         { key: 'LANDED COST', label: 'Landed cost (£)', type: 'number' },
-        { key: 'P2P PRICE', label: 'P2P price (£)', type: 'number', placeholder: 'Provisions to Provisions' },
-        { key: 'P2B PRICE', label: 'P2B price (£)', type: 'number', placeholder: 'Provisions to Business' },
-        { key: 'PCS PRICE', label: 'PCS price (£)', type: 'number', placeholder: 'Provisions to Selfridges' },
         { key: 'CUT FROM', label: 'Cut from (code)', type: 'text', placeholder: 'Whole product this is cut from, if any' },
         { key: 'CUT LIFE DAYS', label: 'Cut life (days)', type: 'number' },
         { key: 'PACK LIFE DAYS', label: 'Pack life (days)', type: 'number' },
         { key: 'ACTIVE', label: 'Active', type: 'checkbox' },
-        { key: 'NOTES', label: 'Notes', type: 'textarea' }
+        { key: 'NOTES', label: 'Notes', type: 'textarea' },
+        { key: 'P2P PRICE', label: 'P2P price (£)', type: 'number', placeholder: 'Provisions to Provisions' },
+        { key: 'P2B PRICE', label: 'P2B price (£)', type: 'number', placeholder: 'Provisions to Business' },
+        { key: 'PCS PRICE', label: 'PCS price (£)', type: 'number', placeholder: 'Provisions to Selfridges' }
       ],
       sample: [
-        ['CCS050', 'Brie Dongé 3kg', 'Cheese', 'AMF/Odéon', 'Dongé', 'TRUE', 'Per kg', 3, 12.7359, 17.1935, 17.19, 21.00, 25.00, '', '', '', 'TRUE', ''],
-        ['CCS041', 'Baron Bigod 1kg', 'Cheese', 'Fen Farm Dairy', 'Fen Farm Dairy', 'TRUE', 'Per kg', 1, 18.15, 20.8725, 20.87, 26.00, 32.00, '', '', '', 'TRUE', ''],
-        ['CCS008', 'St Félicien in Jar 180g', 'Cheese', 'AMF/Odéon', 'Étoile du Vercors', 'TRUE', 'Per unit', '', 3.0883, 4.1692, 4.17, 4.80, 5.95, '', '', '', 'TRUE', ''],
-        ['CCSH012W', 'Toma Piemontese — whole 3kg', 'Cheese', 'Valsana', 'Caseificio Longo', 'TRUE', 'Per kg', 3, 9.3539, 11.973, 11.97, 14.50, 18.00, '', '', 28, 'TRUE', 'Whole wheel — can be cut to order'],
-        ['CCSH012C', 'Toma Piemontese — cut', 'Cheese', 'Valsana', 'Caseificio Longo', 'TRUE', 'Per kg', '', 9.3539, 11.973, '', '', '', 'CCSH012W', 5, 21, 'TRUE', 'Cut from CCSH012W']
+        ['CCS050', 'Brie Dongé 3kg', 'Cheese', 'AMF/Odéon', 'Dongé', 'TRUE', 'Per kg', 3, 12.7359, 17.1935, '', '', '', 'TRUE', '', 17.19, 21.00, 25.00],
+        ['CCS041', 'Baron Bigod 1kg', 'Cheese', 'Fen Farm Dairy', 'Fen Farm Dairy', 'TRUE', 'Per kg', 1, 18.15, 20.8725, '', '', '', 'TRUE', '', 20.87, 26.00, 32.00],
+        ['CCS008', 'St Félicien in Jar 180g', 'Cheese', 'AMF/Odéon', 'Étoile du Vercors', 'TRUE', 'Per unit', '', 3.0883, 4.1692, '', '', '', 'TRUE', '', 4.17, 4.80, 5.95],
+        ['CCSH012W', 'Toma Piemontese — whole 3kg', 'Cheese', 'Valsana', 'Caseificio Longo', 'TRUE', 'Per kg', 3, 9.3539, 11.973, '', '', 28, 'TRUE', 'Whole wheel — can be cut to order', 11.97, 14.50, 18.00],
+        ['CCSH012C', 'Toma Piemontese — cut', 'Cheese', 'Valsana', 'Caseificio Longo', 'TRUE', 'Per kg', '', 9.3539, 11.973, 'CCSH012W', 5, 21, 'TRUE', 'Cut from CCSH012W', '', '', '']
       ]
     });
   });
