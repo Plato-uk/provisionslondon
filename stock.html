@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Provisions — Stock</title>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=Roboto+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css?v=3">
+</head>
+<body>
+
+<div class="app-sidebar">
+  <a class="brand" href="index.html" title="Provisions UK">P</a>
+  <nav class="app-nav">
+    <a href="index.html" title="Dashboard"><span class="rail-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></span><span class="rail-label">Dashboard</span></a>
+    <a href="products.html" title="Products"><span class="rail-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7.5l9-4 9 4-9 4-9-4z"/><path d="M3 7.5v9l9 4 9-4v-9"/><path d="M12 11.5v9"/></svg></span><span class="rail-label">Products</span></a>
+    <a href="suppliers.html" title="Suppliers"><span class="rail-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="12" height="9" rx="1"/><path d="M14 10h4l3 3v3h-7z"/><circle cx="7" cy="18" r="1.8"/><circle cx="17.5" cy="18" r="1.8"/></svg></span><span class="rail-label">Suppliers</span></a>
+    <a href="customers.html" title="Customers"><span class="rail-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20c0-3.6 2.9-6.2 6.5-6.2s6.5 2.6 6.5 6.2"/><circle cx="17.5" cy="9" r="2.3"/><path d="M15.8 13.5c2.6.5 4.2 2.4 4.2 5"/></svg></span><span class="rail-label">Customers</span></a>
+    <a href="deliveries.html" title="Deliveries"><span class="rail-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v10"/><path d="M8 9l4 4 4-4"/><path d="M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"/></svg></span><span class="rail-label">Deliveries</span></a>
+    <a href="stock.html" aria-current="page" title="Stock"><span class="rail-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10"/><path d="M12 20V4"/><path d="M20 20v-7"/></svg></span><span class="rail-label">Stock</span></a>
+    <a href="orders.html" title="Orders"><span class="rail-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 3.5h6a1 1 0 0 1 1 1V6H8V4.5a1 1 0 0 1 1-1z"/><path d="M8.5 11h7M8.5 14.5h7M8.5 18h4"/></svg></span><span class="rail-label">Orders</span></a>
+    <a href="setup.html" title="Setup"><span class="rail-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2.2"/><circle cx="7" cy="17" r="2.2"/></svg></span><span class="rail-label">Setup</span></a>
+  </nav>
+</div>
+
+<main>
+  <h2>Stock</h2>
+  <p class="sub">Real-time availability — computed live from Deliveries minus Allocations, per batch. Nothing here is stored; refresh any time to see the current picture.</p>
+
+  <div id="signedOutNotice" class="note" style="display:none;">
+    Not signed in — go to the <a href="index.html" style="color:inherit; text-decoration:underline;">Dashboard</a> to sign in. Your session will carry over here.
+  </div>
+
+  <div id="stockCard" style="display:none;">
+    <div class="row" id="statsRow" style="margin-bottom:16px;"></div>
+
+    <div class="panel-h" style="border:none; background:none; padding:0 0 8px;">
+      <h3 style="text-transform:none; letter-spacing:normal; font-size:15px; color:var(--ink); font-weight:600;">On hand by product</h3>
+      <button type="button" class="btn ghost sm" id="reloadBtn" style="margin:0;">Reload</button>
+    </div>
+    <div class="panel"><div class="scroll" style="overflow-x:auto;">
+      <table id="summaryTable"><thead><tr>
+        <th>Product</th><th class="num">On hand</th><th>Nearest best-before</th><th class="num">Batches</th>
+      </tr></thead><tbody></tbody></table>
+    </div></div>
+
+    <div class="panel-h" style="border:none; background:none; padding:16px 0 8px;">
+      <h3 style="text-transform:none; letter-spacing:normal; font-size:15px; color:var(--ink); font-weight:600;">By batch</h3>
+    </div>
+    <div class="panel"><div class="scroll" style="overflow-x:auto;">
+      <table id="batchTable"><thead><tr>
+        <th>Product</th><th>Batch / lot</th><th>Supplier</th><th>Received</th><th>Best before</th>
+        <th class="num">Received qty</th><th class="num">Allocated</th><th class="num">Remaining</th>
+      </tr></thead><tbody></tbody></table>
+    </div></div>
+
+    <div id="status" class="mono" style="margin-top:10px; font-size:12.5px; color:var(--steel);"></div>
+  </div>
+</main>
+
+<script src="js/config.js?v=1"></script>
+<script src="js/sheets.js?v=1"></script>
+<script src="js/util.js?v=1"></script>
+<script>
+  let token = null;
+
+  function setStatus(msg, kind) {
+    const el = document.getElementById('status');
+    el.textContent = msg;
+    el.style.color = kind === 'error' ? 'var(--crit)' : kind === 'ok' ? 'var(--ok)' : 'var(--steel)';
+  }
+
+  function requireAuth() {
+    const cfg = getStoredConfig();
+    token = tryResumeSession();
+    const ok = !!(token && cfg.spreadsheetId);
+    document.getElementById('signedOutNotice').style.display = ok ? 'none' : 'block';
+    document.getElementById('stockCard').style.display = ok ? 'block' : 'none';
+    return ok;
+  }
+
+  // Turns a sheet's [header, ...rows] into plain objects keyed by header text,
+  // so the rest of this page can read e.g. row.CODE instead of row[3].
+  function toObjects(rows) {
+    if (!rows.length) return [];
+    const [head, ...rest] = rows;
+    return rest.map(r => {
+      const o = {};
+      head.forEach((h, i) => { o[h] = r[i] ?? ''; });
+      return o;
+    });
+  }
+
+  function daysUntil(dateStr) {
+    if (!dateStr) return null;
+    const target = new Date(dateStr + 'T00:00:00');
+    if (isNaN(target)) return null;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return Math.round((target - today) / 86400000);
+  }
+
+  function bbeTag(dateStr) {
+    if (!dateStr) return `<span class="tag t-amb">No date</span>`;
+    const d = daysUntil(dateStr);
+    if (d === null) return `<span class="tag t-amb">${escapeHtml(dateStr)}</span>`;
+    if (d < 0) return `<span class="tag t-crit">Past BBE — ${escapeHtml(dateStr)}</span>`;
+    if (d <= 3) return `<span class="tag t-crit">${d}d left — ${escapeHtml(dateStr)}</span>`;
+    if (d <= 7) return `<span class="tag t-warn">${d}d left — ${escapeHtml(dateStr)}</span>`;
+    return `<span class="tag t-ok">${d}d left — ${escapeHtml(dateStr)}</span>`;
+  }
+
+  async function loadStock() {
+    if (!requireAuth()) return;
+    const cfg = getStoredConfig();
+    setStatus('Loading...');
+    try {
+      const [productRows, deliveryRows, allocationRows] = await Promise.all([
+        sheetsGet(cfg.spreadsheetId, 'Products!A:Z', token),
+        sheetsGet(cfg.spreadsheetId, 'Deliveries!A:Z', token),
+        sheetsGet(cfg.spreadsheetId, 'Allocations!A:Z', token)
+      ]);
+
+      const products = toObjects(productRows);
+      const deliveries = toObjects(deliveryRows);
+      const allocations = toObjects(allocationRows);
+
+      const productByCode = {};
+      products.forEach(p => { productByCode[p.CODE] = p; });
+
+      // One entry per delivered batch: code|batch -> running totals.
+      const batches = {};
+      const batchKey = (code, batch) => `${code} ${batch}`;
+      deliveries.forEach(d => {
+        const key = batchKey(d['PRODUCT CODE'], d['BATCH/LOT NUMBER']);
+        if (!batches[key]) {
+          batches[key] = {
+            code: d['PRODUCT CODE'],
+            batch: d['BATCH/LOT NUMBER'],
+            supplier: d.SUPPLIER,
+            received: d['DATE RECEIVED'],
+            bbe: d['BEST BEFORE DATE'],
+            unit: d.UNIT || 'kg',
+            qtyReceived: 0,
+            qtyAllocated: 0
+          };
+        }
+        batches[key].qtyReceived += parseFloat(d['QTY RECEIVED']) || 0;
+        // Earliest best-before wins if the same batch number was logged twice.
+        if (d['BEST BEFORE DATE'] && (!batches[key].bbe || d['BEST BEFORE DATE'] < batches[key].bbe)) {
+          batches[key].bbe = d['BEST BEFORE DATE'];
+        }
+      });
+      allocations.forEach(a => {
+        const key = batchKey(a['PRODUCT CODE'], a['BATCH/LOT NUMBER']);
+        if (batches[key]) batches[key].qtyAllocated += parseFloat(a['QTY ALLOCATED']) || 0;
+      });
+
+      const batchList = Object.values(batches).map(b => ({ ...b, remaining: b.qtyReceived - b.qtyAllocated }));
+      batchList.sort((a, b) => (a.bbe || '9999').localeCompare(b.bbe || '9999'));
+
+      // Roll batches up to one row per product.
+      const byProduct = {};
+      batchList.forEach(b => {
+        if (!byProduct[b.code]) byProduct[b.code] = { code: b.code, onHand: 0, unit: b.unit, batchCount: 0, nearestBbe: null };
+        const p = byProduct[b.code];
+        if (b.remaining > 0.0001) {
+          p.onHand += b.remaining;
+          p.batchCount += 1;
+          if (b.bbe && (!p.nearestBbe || b.bbe < p.nearestBbe)) p.nearestBbe = b.bbe;
+        }
+      });
+      const summary = Object.values(byProduct)
+        .filter(p => p.batchCount > 0)
+        .sort((a, b) => (a.nearestBbe || '9999').localeCompare(b.nearestBbe || '9999'));
+
+      renderStats(summary, batchList);
+      renderSummary(summary, productByCode);
+      renderBatches(batchList, productByCode);
+      setStatus(`Loaded ${summary.length} product(s) across ${batchList.length} batch(es).`, 'ok');
+    } catch (err) {
+      setStatus('Error loading stock: ' + err.message, 'error');
+    }
+  }
+
+  function renderStats(summary, batchList) {
+    const expiringSoon = batchList.filter(b => b.remaining > 0.0001 && daysUntil(b.bbe) !== null && daysUntil(b.bbe) <= 3).length;
+    const inStockBatches = batchList.filter(b => b.remaining > 0.0001).length;
+    document.getElementById('statsRow').innerHTML = `
+      <div class="stat"><div class="n">${summary.length}</div><div class="l">Products in stock</div></div>
+      <div class="stat"><div class="n">${inStockBatches}</div><div class="l">Batches in stock</div></div>
+      <div class="stat"><div class="n" style="${expiringSoon ? 'color:var(--crit)' : ''}">${expiringSoon}</div><div class="l">Batches ≤3 days to BBE</div></div>
+    `;
+  }
+
+  function renderSummary(summary, productByCode) {
+    const tbody = document.querySelector('#summaryTable tbody');
+    if (!summary.length) {
+      tbody.innerHTML = `<tr><td colspan="4" class="empty" style="padding:18px;">No stock on hand — log some Deliveries first.</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = summary.map(p => {
+      const prod = productByCode[p.code];
+      const name = prod ? prod.NAME : '(unknown product)';
+      return `<tr>
+        <td><strong>${escapeHtml(p.code)}</strong><br><span class="muted" style="font-size:12px;">${escapeHtml(name)}</span></td>
+        <td class="num">${p.onHand.toFixed(2)} ${escapeHtml(p.unit)}</td>
+        <td>${bbeTag(p.nearestBbe)}</td>
+        <td class="num">${p.batchCount}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  function renderBatches(batchList, productByCode) {
+    const tbody = document.querySelector('#batchTable tbody');
+    if (!batchList.length) {
+      tbody.innerHTML = `<tr><td colspan="8" class="empty" style="padding:18px;">No deliveries logged yet.</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = batchList.map(b => {
+      const prod = productByCode[b.code];
+      const name = prod ? prod.NAME : '(unknown product)';
+      const remainingClass = b.remaining < 0 ? 'neg' : '';
+      const rowStyle = b.remaining <= 0.0001 ? 'opacity:0.5;' : '';
+      return `<tr style="${rowStyle}">
+        <td><strong>${escapeHtml(b.code)}</strong><br><span class="muted" style="font-size:12px;">${escapeHtml(name)}</span></td>
+        <td class="code">${escapeHtml(b.batch)}</td>
+        <td>${escapeHtml(b.supplier)}</td>
+        <td>${escapeHtml(b.received)}</td>
+        <td>${bbeTag(b.bbe)}</td>
+        <td class="num">${b.qtyReceived.toFixed(2)}</td>
+        <td class="num">${b.qtyAllocated.toFixed(2)}</td>
+        <td class="num ${remainingClass}">${b.remaining.toFixed(2)} ${escapeHtml(b.unit)}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  document.getElementById('reloadBtn').addEventListener('click', loadStock);
+  window.addEventListener('load', loadStock);
+</script>
+</body>
+</html>
