@@ -7,31 +7,32 @@
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/style.css?v=1">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=Roboto+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css?v=2">
 </head>
 <body>
 
-<header class="app-header">
-  <a class="brand" href="index.html" aria-label="Provisions — Dashboard" title="Provisions"></a>
-  <nav class="app-nav">
-    <a href="index.html" title="Dashboard"><span class="rail-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></span><span class="rail-label">Dashboard</span></a>
-    <a href="setup.html" class="active" title="Setup"><span class="rail-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2.2"/><circle cx="7" cy="17" r="2.2"/></svg></span><span class="rail-label">Setup</span></a>
-  </nav>
+<header>
+  <a class="brand" href="index.html">PROVISIONS <span>UK</span></a>
 </header>
+<nav>
+  <a href="index.html">Dashboard</a>
+  <a href="setup.html" aria-current="page">Setup</a>
+</nav>
 
 <main>
-  <h1>Sheet Setup</h1>
+  <h2>Sheet Setup</h2>
   <p class="sub">Creates any missing tabs and header rows in your spreadsheet — run this once, or any time you add a new tool. Safe to re-run: it never overwrites a tab that already has a header row.</p>
 
-  <div id="signedOutNotice" class="card" style="display:none;">
-    <span class="badge off">Not signed in</span>
-    <p style="font-size:13px; color:var(--muted); margin-bottom:0;">Go to the <a href="index.html">Dashboard</a> to sign in — your session will carry over here.</p>
+  <div id="signedOutNotice" class="note" style="display:none;">
+    Not signed in — go to the <a href="index.html" style="color:inherit; text-decoration:underline;">Dashboard</a> to sign in. Your session will carry over here.
   </div>
 
-  <div class="card" id="setupCard" style="display:none;">
-    <button type="button" id="runBtn">Check &amp; create tabs</button>
-    <div id="status" class="status-line"></div>
+  <div class="panel" id="setupCard" style="display:none;">
+    <div class="panel-b">
+      <button type="button" class="btn" id="runBtn">Check &amp; create tabs</button>
+      <div id="status" class="mono" style="margin-top:10px; font-size:12.5px; color:var(--steel);"></div>
+    </div>
   </div>
 
   <div id="tabsList"></div>
@@ -104,7 +105,7 @@
 
   function setStatus(msg, kind) {
     status.textContent = msg;
-    status.className = 'status-line' + (kind ? ' ' + kind : '');
+    status.style.color = kind === 'error' ? 'var(--crit)' : kind === 'ok' ? 'var(--ok)' : 'var(--steel)';
   }
 
   function requireAuth() {
@@ -120,15 +121,18 @@
     return true;
   }
 
-  function badge(text, ok) {
-    return `<span class="badge${ok ? '' : ' off'}">${text}</span>`;
+  function badge(text, kind) {
+    // kind: 'ok' | 'pending' | 'error'
+    const cls = kind === 'ok' ? 't-ok' : kind === 'error' ? 't-crit' : 't-amb';
+    return `<span class="tag ${cls}">${text}</span>`;
   }
 
   function renderTabsList(rows) {
     const container = document.getElementById('tabsList');
     container.innerHTML = `
-      <h2>Required tabs</h2>
-      <div class="card">
+      <div class="panel-h" style="border:none; background:none; padding:0 0 8px;"><h3 style="text-transform:none; letter-spacing:normal; font-size:15px; color:var(--ink); font-weight:600;">Required tabs</h3></div>
+      <div class="panel">
+        <div class="scroll">
         <table>
           <thead><tr><th>Tab</th><th>Status</th><th>Columns</th></tr></thead>
           <tbody>
@@ -136,17 +140,18 @@
               <tr>
                 <td><strong>${r.title}</strong></td>
                 <td>${r.statusBadge}</td>
-                <td style="color:var(--muted); font-size:12px;">${r.headers.join(' · ')}</td>
+                <td class="code" style="font-size:11.5px;">${r.headers.join(' · ')}</td>
               </tr>
             `).join('')}
           </tbody>
         </table>
+        </div>
       </div>
     `;
   }
 
   function renderPending() {
-    renderTabsList(REQUIRED_TABS.map(t => ({ ...t, statusBadge: badge('Not checked yet', false) })));
+    renderTabsList(REQUIRED_TABS.map(t => ({ ...t, statusBadge: badge('Not checked yet', 'pending') })));
   }
 
   function colLetterLocal(n) {
@@ -215,15 +220,15 @@
           const label = !hasHeader
             ? (wasMissing ? 'Created + headers added' : 'Headers added')
             : 'Headers updated';
-          statusBadge = badge(label, true);
+          statusBadge = badge(label, 'ok');
         } else {
-          statusBadge = badge(wasMissing ? 'Created' : 'Already set up', true);
+          statusBadge = badge(wasMissing ? 'Created' : 'Already set up', 'ok');
         }
       } catch (err) {
-        statusBadge = badge('Error: ' + err.message, false);
+        statusBadge = badge('Error: ' + err.message, 'error');
       }
       results.push({ ...tab, statusBadge });
-      renderTabsList(results.concat(REQUIRED_TABS.slice(results.length).map(t => ({ ...t, statusBadge: badge('Pending...', false) }))));
+      renderTabsList(results.concat(REQUIRED_TABS.slice(results.length).map(t => ({ ...t, statusBadge: badge('Pending...', 'pending') }))));
     }
 
     setStatus('Setup complete.', 'ok');
