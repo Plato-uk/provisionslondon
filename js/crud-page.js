@@ -2,8 +2,12 @@
 // (Products, Suppliers, Customers, Deliveries, Orders, OrderLines,
 // Allocations, Prices) configures one of these instead of hand-rolling its
 // own fetch/append/delete logic, so behaviour — including how a row gets
-// deleted (deleteDimension on its real sheet row index) — stays identical
-// across tables.
+// deleted (deleteDimension on its real sheet row index), and how the add
+// form's unsaved-changes guard works — stays identical across tables.
+//
+// The add form lives in a <dialog>, opened via a toolbar button rather than
+// sitting inline on the page, with js/dialog-guard.js protecting against
+// losing in-progress input on an accidental Cancel/Escape/backdrop click.
 //
 // config = {
 //   mount: '#el',            // container to render the panel into
@@ -31,39 +35,47 @@ async function initCrudTable(config) {
   const { mount, title, tab, headers, autoId, fields, sample } = config;
   const root = document.querySelector(mount);
   const range = `${tab}!A:${colLetter(headers.length)}`;
+  const singular = /ies$/.test(title) ? title.replace(/ies$/, 'y') : title.replace(/s$/, '');
   let token = null;
   let sheetId = null;
   const refCache = {};
 
   root.innerHTML = `
-    <div class="panel">
-      <div class="panel-h"><h3>Add ${escapeHtml(title)}</h3></div>
-      <div class="panel-b">
-        <form id="${tab}_form"></form>
-        <div id="${tab}_status" class="mono" style="margin-top:8px; font-size:12.5px; color:var(--steel);"></div>
-      </div>
-    </div>
     <div class="panel-h" style="border:none; background:none; padding:0 0 8px;">
-      <h3 style="text-transform:none; letter-spacing:normal; font-size:15px; color:var(--ink); font-weight:600;">All ${escapeHtml(title)}</h3>
+      <h3 style="text-transform:none; letter-spacing:normal; font-size:15px; color:var(--ink); font-weight:600;">${escapeHtml(title)}</h3>
+      <button type="button" class="btn add-btn sm" id="${tab}_addBtn" style="margin:0;">+ Add ${escapeHtml(singular)}</button>
       <button type="button" class="btn ghost sm" id="${tab}_reload" style="margin:0;">Reload</button>
       ${sample ? `<button type="button" class="btn ghost sm" id="${tab}_seed" style="margin:0;">Load sample data</button>` : ''}
     </div>
     <div class="panel"><div class="scroll" style="overflow-x:auto;"><table id="${tab}_table"><thead><tr></tr></thead><tbody></tbody></table></div></div>
+    <div id="${tab}_status" class="mono" style="margin-top:8px; font-size:12.5px; color:var(--steel);"></div>
+
+    <dialog id="${tab}_dialog">
+      <form id="${tab}_form"></form>
+    </dialog>
   `;
 
-  const form = root.querySelector(`#${tab}_form`);
   const statusEl = root.querySelector(`#${tab}_status`);
   const tableEl = root.querySelector(`#${tab}_table`);
+  const dialogEl = root.querySelector(`#${tab}_dialog`);
+  const form = root.querySelector(`#${tab}_form`);
 
   function setStatus(msg, kind) {
     statusEl.textContent = msg;
     statusEl.style.color = kind === 'error' ? 'var(--crit)' : kind === 'ok' ? 'var(--ok)' : 'var(--steel)';
   }
 
-  async function ensureAuth() {
+  function setDlgStatus(msg, kind) {
+    const el = root.querySelector(`#${tab}_dlgStatus`);
+    if (!el) return;
+    el.textContent = msg;
+    el.style.color = kind === 'error' ? 'var(--crit)' : kind === 'ok' ? 'var(--ok)' : 'var(--steel)';
+  }
+
+  async function ensureAuth(statusFn = setStatus) {
     const cfg = getStoredConfig();
     token = tryResumeSession();
-    if (!token || !cfg.spreadsheetId) { setStatus('Sign in on the Dashboard first.', 'error'); return null; }
+    if (!token || !cfg.spreadsheetId) { statusFn('Sign in on the Dashboard first.', 'error'); return null; }
     return cfg;
   }
 
@@ -76,17 +88,16 @@ async function initCrudTable(config) {
   }
 
   async function loadRefOptions(field, cfg) {
-    const cacheKey = field.refTab;
-    if (refCache[cacheKey]) return refCache[cacheKey];
+    if (refCache[field.refTab]) return refCache[field.refTab];
     const rows = await sheetsGet(cfg.spreadsheetId, `${field.refTab}!A:Z`, token);
-    if (!rows.length) { refCache[cacheKey] = []; return []; }
+    if (!rows.length) { refCache[field.refTab] = []; return []; }
     const [head, ...rest] = rows;
     const valueIdx = head.indexOf(field.refValue);
     const labelIdx = field.refLabel ? head.indexOf(field.refLabel) : -1;
     const opts = rest
       .filter(r => (r[valueIdx] || '').toString().trim() !== '')
       .map(r => ({ value: r[valueIdx], label: labelIdx >= 0 && r[labelIdx] ? `${r[valueIdx]} — ${r[labelIdx]}` : r[valueIdx] }));
-    refCache[cacheKey] = opts;
+    refCache[field.refTab] = opts;
     return opts;
   }
 
@@ -108,24 +119,42 @@ async function initCrudTable(config) {
     return `<input id="${id}" placeholder="${escapeHtml(f.placeholder || '')}">`;
   }
 
-  async function renderForm() {
+  // Builds the dialog's form DOM once. Ref-type <select> options are filled
+  // in later, on each dialog open, so they're never stale.
+  function renderForm() {
     form.innerHTML = `
-      <div class="row">
-        ${fields.map(f => `<div class="col field"><label>${escapeHtml(f.label)}${f.required ? ' *' : ''}</label>${fieldInputHtml(f)}</div>`).join('')}
+      <div class="dlg-h">Add ${escapeHtml(singular)}</div>
+      <div class="dlg-b">
+        <div class="row">
+          ${fields.map(f => `<div class="col field"><label>${escapeHtml(f.label)}${f.required ? ' *' : ''}</label>${fieldInputHtml(f)}</div>`).join('')}
+        </div>
+        <div id="${tab}_dlgStatus" class="mono" style="margin-top:10px; font-size:12.5px; color:var(--steel);"></div>
       </div>
-      <button type="submit" class="btn">Add ${escapeHtml(title.replace(/s$/, ''))}</button>
+      <div class="dlg-f">
+        <button type="button" class="btn ghost" data-cancel>Cancel</button>
+        <button type="submit" class="btn">Add ${escapeHtml(singular)}</button>
+      </div>
     `;
+    resetFieldValues();
+  }
+
+  function resetFieldValues() {
     for (const f of fields) {
-      if (f.type === 'date' && f.default === 'today') {
-        form.querySelector(`#${fid(f)}`).value = new Date().toISOString().slice(0, 10);
-      }
+      const el = form.querySelector(`#${fid(f)}`);
+      if (f.type === 'checkbox') el.checked = false;
+      else if (f.type === 'date' && f.default === 'today') el.value = new Date().toISOString().slice(0, 10);
+      else el.value = '';
     }
+  }
+
+  async function refreshRefOptions() {
     const cfg = getStoredConfig();
     if (!cfg.spreadsheetId) return;
     for (const f of fields) {
       if (f.type !== 'ref') continue;
       const sel = form.querySelector(`#${fid(f)}`);
       try {
+        delete refCache[f.refTab]; // always fetch fresh when the dialog opens
         const opts = await loadRefOptions(f, cfg);
         sel.innerHTML = `<option value="">—</option>` + opts.map(o => `<option value="${escapeHtml(o.value)}">${escapeHtml(o.label)}</option>`).join('');
       } catch (err) {
@@ -138,15 +167,6 @@ async function initCrudTable(config) {
     const el = form.querySelector(`#${fid(f)}`);
     if (f.type === 'checkbox') return el.checked ? 'TRUE' : 'FALSE';
     return el.value.trim();
-  }
-
-  function clearForm() {
-    for (const f of fields) {
-      const el = form.querySelector(`#${fid(f)}`);
-      if (f.type === 'checkbox') el.checked = false;
-      else if (f.type === 'date' && f.default === 'today') el.value = new Date().toISOString().slice(0, 10);
-      else if (f.type !== 'ref') el.value = '';
-    }
   }
 
   function displayCell(header, value) {
@@ -210,16 +230,30 @@ async function initCrudTable(config) {
     if (btn) handleDelete(parseInt(btn.dataset.del, 10));
   });
 
+  renderForm();
+  const guard = attachDiscardGuard(dialogEl, { scope: form });
+
+  async function openDialog() {
+    setDlgStatus('');
+    resetFieldValues();
+    await refreshRefOptions();
+    dialogEl.showModal();
+    guard.arm();
+  }
+
+  root.querySelector(`#${tab}_addBtn`).addEventListener('click', openDialog);
+  form.querySelector('[data-cancel]').addEventListener('click', () => guard.guardedClose());
+
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const cfg = await ensureAuth();
+    const cfg = await ensureAuth(setDlgStatus);
     if (!cfg) return;
 
     for (const f of fields) {
-      if (f.required && !fieldValue(f)) { setStatus(`${f.label} is required.`, 'error'); return; }
+      if (f.required && !fieldValue(f)) { setDlgStatus(`${f.label} is required.`, 'error'); return; }
     }
 
-    setStatus('Adding...');
+    setDlgStatus('Adding...');
     try {
       let row;
       if (autoId) {
@@ -230,12 +264,11 @@ async function initCrudTable(config) {
         row = fields.map(fieldValue);
       }
       await sheetsAppend(cfg.spreadsheetId, range, row, token);
-      setStatus('Added.', 'ok');
-      form.reset();
-      clearForm();
+      dialogEl.close(); // programmatic close — the discard guard only ever intercepts 'cancel'/backdrop, never this
+      setStatus(`${singular} added.`, 'ok');
       loadRows();
     } catch (err) {
-      setStatus('Error: ' + err.message, 'error');
+      setDlgStatus('Error: ' + err.message, 'error');
     }
   });
 
@@ -274,8 +307,5 @@ async function initCrudTable(config) {
 
   root.querySelector(`#${tab}_reload`).addEventListener('click', loadRows);
 
-  await renderForm();
-  const cfg = getStoredConfig();
-  if (cfg.spreadsheetId && tryResumeSession()) loadRows();
-  else setStatus('Sign in on the Dashboard to load data.', 'error');
+  loadRows();
 }
