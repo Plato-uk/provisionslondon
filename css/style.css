@@ -54,6 +54,18 @@ td{padding:8px 10px;border-bottom:1px solid #EDF0F2;vertical-align:middle}
 tbody tr:hover{background:#FAFBFC}
 td.num,th.num{text-align:right;font-family:'Roboto Mono',monospace;font-variant-numeric:tabular-nums}
 .scroll{max-height:520px;overflow:auto}
+th.sortable{cursor:pointer;user-select:none}
+th.sortable:hover{color:var(--ink)}
+
+/* Search + column-visibility toolbar above a table */
+.filter-bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:10px 0}
+.filter-bar input[type="search"]{width:240px}
+.col-picker-wrap{position:relative;display:inline-block}
+.col-menu{position:absolute;left:0;top:calc(100% + 6px);background:#fff;border:1px solid var(--line);border-radius:6px;box-shadow:0 12px 30px rgba(20,24,28,.18);padding:10px 12px;z-index:15;min-width:190px;max-height:280px;overflow-y:auto}
+.col-menu label{display:flex;align-items:center;gap:8px;font-family:Archivo,sans-serif;font-size:13px;font-weight:400;color:var(--ink);text-transform:none;letter-spacing:normal;margin:6px 0;white-space:nowrap}
+.col-menu label:first-child{margin-top:0}
+.col-menu label:last-child{margin-bottom:0}
+input[type="checkbox"]{width:auto}
 
 /* ---- bits */
 .tag{display:inline-block;font-family:'Roboto Mono',monospace;font-size:10px;letter-spacing:.05em;padding:2px 6px;border-radius:3px;text-transform:uppercase;font-weight:500}

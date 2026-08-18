@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=Roboto+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/style.css?v=6">
+<link rel="stylesheet" href="css/style.css?v=7">
 <link rel="icon" type="image/png" href="img/favicon.png">
 </head>
 <body>
@@ -43,7 +43,7 @@
 <script src="js/sheets.js?v=1"></script>
 <script src="js/util.js?v=1"></script>
 <script src="js/dialog-guard.js?v=1"></script>
-<script src="js/crud-page.js?v=5"></script>
+<script src="js/crud-page.js?v=6"></script>
 <script>
   function requireAuth() {
     const cfg = getStoredConfig();
@@ -71,16 +71,16 @@
         { key: 'CHILLED', label: 'Chilled', type: 'checkbox' },
         { key: 'UNIT TYPE', label: 'Unit type', type: 'select', options: ['Per kg', 'Per unit'] },
         { key: 'NOMINAL WEIGHT', label: 'Nominal weight (kg)', type: 'number' },
-        { key: 'COST', label: 'Cost (£)', type: 'number' },
-        { key: 'LANDED COST', label: 'Landed cost (£)', type: 'number' },
+        { key: 'COST', label: 'Cost (£)', type: 'number', format: 'currency' },
+        { key: 'LANDED COST', label: 'Landed cost (£)', type: 'number', format: 'currency' },
         { key: 'CUT FROM', label: 'Cut from (code)', type: 'text', placeholder: 'Whole product this is cut from, if any' },
         { key: 'CUT LIFE DAYS', label: 'Cut life (days)', type: 'number' },
         { key: 'PACK LIFE DAYS', label: 'Pack life (days)', type: 'number' },
         { key: 'ACTIVE', label: 'Active', type: 'checkbox' },
         { key: 'NOTES', label: 'Notes', type: 'textarea' },
-        { key: 'P2P PRICE', label: 'P2P price (£)', type: 'number', placeholder: 'Provisions to Provisions' },
-        { key: 'P2B PRICE', label: 'P2B price (£)', type: 'number', placeholder: 'Provisions to Business' },
-        { key: 'P2S PRICE', label: 'P2S price (£)', type: 'number', placeholder: 'Provisions to Selfridges' }
+        { key: 'P2P PRICE', label: 'P2P price (£)', type: 'number', format: 'currency', placeholder: 'Provisions to Provisions' },
+        { key: 'P2B PRICE', label: 'P2B price (£)', type: 'number', format: 'currency', placeholder: 'Provisions to Business' },
+        { key: 'P2S PRICE', label: 'P2S price (£)', type: 'number', format: 'currency', placeholder: 'Provisions to Selfridges' }
       ],
       sample: [
         ['CCS050', 'Brie Dongé 3kg', 'Cheese', 'AMF/Odéon', 'Dongé', 'TRUE', 'Per kg', 3, 12.7359, 17.1935, '', '', '', 'TRUE', '', 17.19, 21.00, 25.00],

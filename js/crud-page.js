@@ -2,8 +2,9 @@
 // page (Products, Suppliers, Customers, Deliveries, Orders, OrderLines,
 // Allocations) configures one of these instead of hand-rolling its
 // own fetch/append/update/delete logic, so behaviour — including how a row
-// gets deleted or overwritten (via its real sheet row index), and how the
-// form's unsaved-changes guard works — stays identical across tables.
+// gets deleted or overwritten (via its real sheet row index), how the
+// form's unsaved-changes guard works, and how sort/search/column-visibility
+// behave — stays identical across tables.
 //
 // Add and Edit share one <dialog>, opened via a toolbar button or a row's
 // Edit button rather than sitting inline on the page, with
@@ -26,6 +27,7 @@
 //     { key:'ACTIVE', label:'Active', type:'checkbox' },
 //     { key:'CATEGORY', label:'Category', type:'select', options:[...] },
 //     { key:'SUPPLIER', label:'Supplier', type:'ref', refTab:'Suppliers', refValue:'NAME' },
+//     { key:'COST', label:'Cost', type:'number', format:'currency' },
 //   ],
 //   sample: [ [...row values in header order, 'auto' for the id col...], ... ]
 // }
@@ -33,6 +35,16 @@
 // fields[i] corresponds to headers[i+1] when autoId is set (headers[0] is
 // the generated ID, not user-entered) or headers[i] when autoId is null
 // (headers[0] IS a field, e.g. CODE).
+//
+// `format: 'currency'` on a 'number' field displays it as "£12.74" in the
+// table (rounded for display only — the stored value keeps full precision)
+// and right-aligns/sorts it numerically like any other number field.
+//
+// The table itself gets, for free: click-a-header to sort (numeric-aware
+// for number/currency fields), a search box that filters across every
+// column regardless of visibility, and a Columns picker to hide/show
+// individual columns — the hidden-column set persists per table via
+// localStorage.
 
 async function initCrudTable(config) {
   const { mount, title, tab, headers, autoId, fields, sample } = config;
@@ -42,8 +54,13 @@ async function initCrudTable(config) {
   const singular = /ies$/.test(title) ? title.replace(/ies$/, 'y') : title.replace(/s$/, '');
   let token = null;
   let sheetId = null;
-  let rowsData = []; // data rows (no header) from the last successful load, for Edit lookups
+  let rowsData = []; // [{ rowNumber, values }] from the last successful load — array index k always maps to rowNumber k+2, so it's never reordered even when the *displayed* view is sorted/filtered
   let editing = null; // null = Add mode; { rowNumber, id } = editing that existing row
+  let sortColIdx = null;
+  let sortDir = 1;
+  let searchTerm = '';
+  const hiddenColsKey = `${tab}_hiddenCols`;
+  let hiddenCols = new Set(JSON.parse(localStorage.getItem(hiddenColsKey) || '[]'));
   const refCache = {};
 
   root.innerHTML = `
@@ -52,6 +69,15 @@ async function initCrudTable(config) {
       <button type="button" class="btn add-btn sm" id="${tab}_addBtn" style="margin:0;">+ Add ${escapeHtml(singular)}</button>
       <button type="button" class="btn ghost sm" id="${tab}_reload" style="margin:0;">Reload</button>
       ${sample ? `<button type="button" class="btn ghost sm" id="${tab}_seed" style="margin:0;">Load sample data</button>` : ''}
+    </div>
+    <div class="filter-bar">
+      <input type="search" id="${tab}_search" placeholder="Search ${escapeHtml(title.toLowerCase())}...">
+      <div class="col-picker-wrap">
+        <button type="button" class="btn ghost sm" id="${tab}_colsBtn">Columns</button>
+        <div class="col-menu" id="${tab}_colsMenu" style="display:none;">
+          ${headers.map(h => `<label><input type="checkbox" data-col="${escapeHtml(h)}" ${hiddenCols.has(h) ? '' : 'checked'}> ${escapeHtml(h)}</label>`).join('')}
+        </div>
+      </div>
     </div>
     <div class="panel"><div class="scroll" style="overflow-x:auto;"><table id="${tab}_table"><thead><tr></tr></thead><tbody></tbody></table></div></div>
     <div id="${tab}_status" class="mono" style="margin-top:8px; font-size:12.5px; color:var(--steel);"></div>
@@ -65,6 +91,9 @@ async function initCrudTable(config) {
   const tableEl = root.querySelector(`#${tab}_table`);
   const dialogEl = root.querySelector(`#${tab}_dialog`);
   const form = root.querySelector(`#${tab}_form`);
+  const searchInput = root.querySelector(`#${tab}_search`);
+  const colsBtn = root.querySelector(`#${tab}_colsBtn`);
+  const colsMenu = root.querySelector(`#${tab}_colsMenu`);
 
   function setStatus(msg, kind) {
     statusEl.textContent = msg;
@@ -112,6 +141,13 @@ async function initCrudTable(config) {
   // every element id and lookup goes through this sanitized form instead.
   function fid(f) {
     return `${tab}_f_${f.key.replace(/[^A-Za-z0-9]/g, '_')}`;
+  }
+
+  // Maps a `headers` column index back to its field definition (undefined
+  // for the autoId-owned ID column, which has no field).
+  function fieldForHeaderIndex(idx) {
+    const fieldIdx = autoId ? idx - 1 : idx;
+    return fields[fieldIdx];
   }
 
   function fieldInputHtml(f) {
@@ -199,11 +235,18 @@ async function initCrudTable(config) {
     return el.value.trim();
   }
 
-  function displayCell(header, value) {
-    const field = fields.find(f => f.key === header);
+  function isNumericField(f) {
+    return !!f && (f.type === 'number' || f.format === 'currency');
+  }
+
+  function displayCell(field, value) {
     if (field && field.type === 'checkbox') {
       const on = (value || '').toString().toUpperCase() === 'TRUE';
       return `<span class="tag ${on ? 't-ok' : 't-amb'}">${on ? 'Yes' : 'No'}</span>`;
+    }
+    if (field && field.format === 'currency') {
+      const n = parseFloat(value);
+      return isNaN(n) ? '' : `£${n.toFixed(2)}`;
     }
     return escapeHtml(value);
   }
@@ -216,26 +259,62 @@ async function initCrudTable(config) {
     setStatus('Loading...');
     try {
       const rows = await sheetsGet(cfg.spreadsheetId, range, token);
-      const [head, ...rest] = rows.length ? rows : [headers];
-      rowsData = rest;
-      renderTable(head, rest);
+      const rest = rows.length ? rows.slice(1) : [];
+      rowsData = rest.map((values, i) => ({ rowNumber: i + 2, values }));
+      applyViewAndRender();
       setStatus(`Loaded ${rest.length} row(s).`, 'ok');
     } catch (err) {
       setStatus('Error loading: ' + err.message, 'error');
     }
   }
 
-  function renderTable(head, rows) {
+  function compareCell(a, b, colIdx) {
+    if (isNumericField(fieldForHeaderIndex(colIdx))) {
+      const na = parseFloat(a); const nb = parseFloat(b);
+      const va = isNaN(na) ? -Infinity : na;
+      const vb = isNaN(nb) ? -Infinity : nb;
+      return va - vb;
+    }
+    return (a ?? '').toString().localeCompare((b ?? '').toString());
+  }
+
+  function applyViewAndRender() {
+    let view = rowsData;
+    if (searchTerm) {
+      view = view.filter(d => d.values.some(v => (v ?? '').toString().toLowerCase().includes(searchTerm)));
+    }
+    if (sortColIdx !== null) {
+      view = [...view].sort((a, b) => compareCell(a.values[sortColIdx], b.values[sortColIdx], sortColIdx) * sortDir);
+    }
+    renderTable(view);
+  }
+
+  function renderTable(viewRows) {
     const thead = tableEl.querySelector('thead tr');
     const tbody = tableEl.querySelector('tbody');
-    thead.innerHTML = head.map(h => `<th>${escapeHtml(h)}</th>`).join('') + '<th></th>';
-    if (!rows.length) {
-      tbody.innerHTML = `<tr><td colspan="${head.length + 1}" class="empty" style="padding:18px;">No rows yet.</td></tr>`;
+
+    thead.innerHTML = headers.map((h, idx) => {
+      if (hiddenCols.has(h)) return '';
+      const numCls = isNumericField(fieldForHeaderIndex(idx)) ? ' num' : '';
+      const arrow = sortColIdx === idx ? (sortDir === 1 ? ' ▲' : ' ▼') : '';
+      return `<th class="sortable${numCls}" data-col-idx="${idx}">${escapeHtml(h)}${arrow}</th>`;
+    }).join('') + '<th></th>';
+
+    if (!viewRows.length) {
+      const visibleCount = headers.filter(h => !hiddenCols.has(h)).length + 1;
+      const msg = rowsData.length ? 'No rows match your search.' : 'No rows yet.';
+      tbody.innerHTML = `<tr><td colspan="${visibleCount}" class="empty" style="padding:18px;">${msg}</td></tr>`;
       return;
     }
-    tbody.innerHTML = rows.map((r, i) => {
-      const cells = head.map(h => `<td>${displayCell(h, r[head.indexOf(h)])}</td>`).join('');
-      return `<tr data-row="${i + 2}">${cells}<td style="white-space:nowrap;"><button type="button" class="btn ghost sm" data-edit="${i + 2}">Edit</button> <button type="button" class="btn danger sm" data-del="${i + 2}">Remove</button></td></tr>`;
+
+    tbody.innerHTML = viewRows.map(d => {
+      const cells = headers.map((h, idx) => {
+        if (hiddenCols.has(h)) return '';
+        const field = fieldForHeaderIndex(idx);
+        const numCls = isNumericField(field) ? ' class="num"' : '';
+        return `<td${numCls}>${displayCell(field, d.values[idx])}</td>`;
+      }).join('');
+      return `<tr data-row="${d.rowNumber}">${cells}<td style="white-space:nowrap;"><button type="button" class="btn ghost sm" data-edit="${d.rowNumber}">Edit</button> <button type="button" class="btn danger sm" data-del="${d.rowNumber}">Remove</button></td></tr>`;
     }).join('');
   }
 
@@ -257,10 +336,40 @@ async function initCrudTable(config) {
   }
 
   tableEl.addEventListener('click', (e) => {
+    const th = e.target.closest('th[data-col-idx]');
+    if (th) {
+      const idx = parseInt(th.dataset.colIdx, 10);
+      if (sortColIdx === idx) sortDir *= -1; else { sortColIdx = idx; sortDir = 1; }
+      applyViewAndRender();
+      return;
+    }
     const delBtn = e.target.closest('button[data-del]');
     if (delBtn) { handleDelete(parseInt(delBtn.dataset.del, 10)); return; }
     const editBtn = e.target.closest('button[data-edit]');
     if (editBtn) handleEdit(parseInt(editBtn.dataset.edit, 10));
+  });
+
+  searchInput.addEventListener('input', () => {
+    searchTerm = searchInput.value.trim().toLowerCase();
+    applyViewAndRender();
+  });
+
+  colsBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    colsMenu.style.display = colsMenu.style.display === 'none' ? 'block' : 'none';
+  });
+  document.addEventListener('click', (e) => {
+    if (colsMenu.style.display !== 'none' && !colsMenu.contains(e.target) && e.target !== colsBtn) {
+      colsMenu.style.display = 'none';
+    }
+  });
+  colsMenu.addEventListener('change', (e) => {
+    const cb = e.target.closest('input[type=checkbox]');
+    if (!cb) return;
+    const col = cb.dataset.col;
+    if (cb.checked) hiddenCols.delete(col); else hiddenCols.add(col);
+    localStorage.setItem(hiddenColsKey, JSON.stringify([...hiddenCols]));
+    applyViewAndRender();
   });
 
   renderForm();
@@ -278,8 +387,9 @@ async function initCrudTable(config) {
   }
 
   async function handleEdit(rowNumber) {
-    const rowValues = rowsData[rowNumber - 2];
-    if (!rowValues) return;
+    const row = rowsData[rowNumber - 2];
+    if (!row) return;
+    const rowValues = row.values;
     editing = { rowNumber, id: rowValues[0] };
     root.querySelector(`#${tab}_dlgTitle`).textContent = `Edit ${singular}`;
     root.querySelector(`#${tab}_submitBtn`).textContent = 'Save changes';
