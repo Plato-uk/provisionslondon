@@ -30,7 +30,7 @@
 
 <main>
   <h2>Products</h2>
-  <p class="sub">The item master — one row per SKU, keyed by your own product code. Each product carries up to three fixed prices — P2P, P2B, and P2S — any of which can be left blank. A customer's <a href="customers.html">Price tier</a> picks which one applies to their orders.</p>
+  <p class="sub">The item master — one row per SKU, keyed by your own product code. Mirrors the Xero-linked schema: cost/landed cost, cut-to-order fields, and Xero item/account codes for accounting sync.</p>
 
   <div id="signedOutNotice" class="note" style="display:none;">
     Not signed in — go to the <a href="index.html" style="color:inherit; text-decoration:underline;">Dashboard</a> to sign in. Your session will carry over here.
@@ -43,7 +43,7 @@
 <script src="js/sheets.js?v=1"></script>
 <script src="js/util.js?v=1"></script>
 <script src="js/dialog-guard.js?v=1"></script>
-<script src="js/crud-page.js?v=6"></script>
+<script src="js/crud-page.js?v=7"></script>
 <script>
   function requireAuth() {
     const cfg = getStoredConfig();
@@ -60,34 +60,33 @@
       mount: '#productsMount',
       title: 'Products',
       tab: 'Products',
-      headers: ['CODE','NAME','CATEGORY','SUPPLIER','PRODUCER','CHILLED','UNIT TYPE','NOMINAL WEIGHT','COST','LANDED COST','CUT FROM','CUT LIFE DAYS','PACK LIFE DAYS','ACTIVE','NOTES','P2P PRICE','P2B PRICE','P2S PRICE'],
+      headers: ['Product code','Product name','Category','Default supplier','Producer','Storage','Ordering unit','Units per case','Pricing basis','Nominal weight (kg)','Cost price £','Landed cost £','GP at list','Tolerance band (%)','Cut from (code)','Cut shelf life (days)','Part-cut shelf life (days)','Target pack weight (kg)','Xero item code','Xero account code','VAT rate','Active','Sellable','Notes'],
       autoId: null,
       fields: [
-        { key: 'CODE', label: 'Code', type: 'text', required: true, placeholder: 'e.g. CCS050' },
-        { key: 'NAME', label: 'Name', type: 'text', required: true, placeholder: 'e.g. Brie Dongé 3kg' },
-        { key: 'CATEGORY', label: 'Category', type: 'text', placeholder: 'e.g. Cheese' },
-        { key: 'SUPPLIER', label: 'Supplier', type: 'ref', refTab: 'Suppliers', refValue: 'NAME' },
-        { key: 'PRODUCER', label: 'Producer', type: 'text' },
-        { key: 'CHILLED', label: 'Chilled', type: 'checkbox' },
-        { key: 'UNIT TYPE', label: 'Unit type', type: 'select', options: ['Per kg', 'Per unit'] },
-        { key: 'NOMINAL WEIGHT', label: 'Nominal weight (kg)', type: 'number' },
-        { key: 'COST', label: 'Cost (£)', type: 'number', format: 'currency' },
-        { key: 'LANDED COST', label: 'Landed cost (£)', type: 'number', format: 'currency' },
-        { key: 'CUT FROM', label: 'Cut from (code)', type: 'text', placeholder: 'Whole product this is cut from, if any' },
-        { key: 'CUT LIFE DAYS', label: 'Cut life (days)', type: 'number' },
-        { key: 'PACK LIFE DAYS', label: 'Pack life (days)', type: 'number' },
-        { key: 'ACTIVE', label: 'Active', type: 'checkbox' },
-        { key: 'NOTES', label: 'Notes', type: 'textarea' },
-        { key: 'P2P PRICE', label: 'P2P price (£)', type: 'number', format: 'currency', placeholder: 'Provisions to Provisions' },
-        { key: 'P2B PRICE', label: 'P2B price (£)', type: 'number', format: 'currency', placeholder: 'Provisions to Business' },
-        { key: 'P2S PRICE', label: 'P2S price (£)', type: 'number', format: 'currency', placeholder: 'Provisions to Selfridges' }
-      ],
-      sample: [
-        ['CCS050', 'Brie Dongé 3kg', 'Cheese', 'AMF/Odéon', 'Dongé', 'TRUE', 'Per kg', 3, 12.7359, 17.1935, '', '', '', 'TRUE', '', 17.19, 21.00, 25.00],
-        ['CCS041', 'Baron Bigod 1kg', 'Cheese', 'Fen Farm Dairy', 'Fen Farm Dairy', 'TRUE', 'Per kg', 1, 18.15, 20.8725, '', '', '', 'TRUE', '', 20.87, 26.00, 32.00],
-        ['CCS008', 'St Félicien in Jar 180g', 'Cheese', 'AMF/Odéon', 'Étoile du Vercors', 'TRUE', 'Per unit', '', 3.0883, 4.1692, '', '', '', 'TRUE', '', 4.17, 4.80, 5.95],
-        ['CCSH012W', 'Toma Piemontese — whole 3kg', 'Cheese', 'Valsana', 'Caseificio Longo', 'TRUE', 'Per kg', 3, 9.3539, 11.973, '', '', 28, 'TRUE', 'Whole wheel — can be cut to order', 11.97, 14.50, 18.00],
-        ['CCSH012C', 'Toma Piemontese — cut', 'Cheese', 'Valsana', 'Caseificio Longo', 'TRUE', 'Per kg', '', 9.3539, 11.973, 'CCSH012W', 5, 21, 'TRUE', 'Cut from CCSH012W', '', '', '']
+        { key: 'Product code', label: 'Product code', type: 'text', required: true, placeholder: 'e.g. CCS050' },
+        { key: 'Product name', label: 'Product name', type: 'text', required: true, placeholder: 'e.g. Brie Dongé 3kg' },
+        { key: 'Category', label: 'Category', type: 'select', options: ['Biscuits','Charcuterie','Cheese','Condiment','Deli & Snacks','Jam','Non-Food','Oil','Pasta','Preserved Veg','Pâté & Terrine','Ready Meals','Tinned Fish','Vinegar'] },
+        { key: 'Default supplier', label: 'Default supplier', type: 'ref', refTab: 'Suppliers', refValue: 'Supplier name' },
+        { key: 'Producer', label: 'Producer', type: 'text' },
+        { key: 'Storage', label: 'Storage', type: 'select', options: ['Ambient', 'Chilled'] },
+        { key: 'Ordering unit', label: 'Ordering unit', type: 'select', options: ['Case', 'Unit'] },
+        { key: 'Units per case', label: 'Units per case', type: 'number' },
+        { key: 'Pricing basis', label: 'Pricing basis', type: 'select', options: ['Per kg', 'Per unit'] },
+        { key: 'Nominal weight (kg)', label: 'Nominal weight (kg)', type: 'number' },
+        { key: 'Cost price £', label: 'Cost price (£)', type: 'number', format: 'currency' },
+        { key: 'Landed cost £', label: 'Landed cost (£)', type: 'number', format: 'currency' },
+        { key: 'GP at list', label: 'GP at list', type: 'text', placeholder: 'e.g. 31.20% — usually a formula, edit with care' },
+        { key: 'Tolerance band (%)', label: 'Tolerance band (%)', type: 'number' },
+        { key: 'Cut from (code)', label: 'Cut from (code)', type: 'text', placeholder: 'Whole product this is cut from, if any' },
+        { key: 'Cut shelf life (days)', label: 'Cut shelf life (days)', type: 'number' },
+        { key: 'Part-cut shelf life (days)', label: 'Part-cut shelf life (days)', type: 'number' },
+        { key: 'Target pack weight (kg)', label: 'Target pack weight (kg)', type: 'number' },
+        { key: 'Xero item code', label: 'Xero item code', type: 'text' },
+        { key: 'Xero account code', label: 'Xero account code', type: 'text' },
+        { key: 'VAT rate', label: 'VAT rate', type: 'select', options: ['20% (VAT on income)', 'Zero rated income'] },
+        { key: 'Active', label: 'Active', type: 'checkbox', trueValue: 'Yes', falseValue: 'No' },
+        { key: 'Sellable', label: 'Sellable', type: 'checkbox', trueValue: 'Yes', falseValue: 'No' },
+        { key: 'Notes', label: 'Notes', type: 'textarea' }
       ]
     });
   });

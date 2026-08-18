@@ -24,7 +24,8 @@
 //   fields: [                // one entry per header, in header order
 //     { key:'NAME', label:'Name', type:'text', required:true },
 //     { key:'TIER', label:'Tier', type:'text', placeholder:'e.g. Standard' },
-//     { key:'ACTIVE', label:'Active', type:'checkbox' },
+//     { key:'ACTIVE', label:'Active', type:'checkbox' },        // stores TRUE/FALSE
+//     { key:'ACTIVE', label:'Active', type:'checkbox', trueValue:'Yes', falseValue:'No' }, // stores Yes/No instead
 //     { key:'CATEGORY', label:'Category', type:'select', options:[...] },
 //     { key:'SUPPLIER', label:'Supplier', type:'ref', refTab:'Suppliers', refValue:'NAME' },
 //     { key:'COST', label:'Cost', type:'number', format:'currency' },
@@ -205,7 +206,7 @@ async function initCrudTable(config) {
     fields.forEach((f, i) => {
       const el = form.querySelector(`#${fid(f)}`);
       const raw = rowValues[i + offset] ?? '';
-      if (f.type === 'checkbox') el.checked = (raw || '').toString().toUpperCase() === 'TRUE';
+      if (f.type === 'checkbox') el.checked = (raw || '').toString().toUpperCase() === (f.trueValue || 'TRUE').toUpperCase();
       else el.value = raw;
     });
     fields.forEach(f => {
@@ -231,7 +232,7 @@ async function initCrudTable(config) {
 
   function fieldValue(f) {
     const el = form.querySelector(`#${fid(f)}`);
-    if (f.type === 'checkbox') return el.checked ? 'TRUE' : 'FALSE';
+    if (f.type === 'checkbox') return el.checked ? (f.trueValue || 'TRUE') : (f.falseValue || 'FALSE');
     return el.value.trim();
   }
 
@@ -241,8 +242,10 @@ async function initCrudTable(config) {
 
   function displayCell(field, value) {
     if (field && field.type === 'checkbox') {
-      const on = (value || '').toString().toUpperCase() === 'TRUE';
-      return `<span class="tag ${on ? 't-ok' : 't-amb'}">${on ? 'Yes' : 'No'}</span>`;
+      const on = (value || '').toString().toUpperCase() === (field.trueValue || 'TRUE').toUpperCase();
+      const onLabel = field.trueValue || 'Yes';
+      const offLabel = field.falseValue || 'No';
+      return `<span class="tag ${on ? 't-ok' : 't-amb'}">${on ? onLabel : offLabel}</span>`;
     }
     if (field && field.format === 'currency') {
       const n = parseFloat(value);

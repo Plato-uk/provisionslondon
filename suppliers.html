@@ -30,7 +30,7 @@
 
 <main>
   <h2>Suppliers</h2>
-  <p class="sub">Who deliveries come from.</p>
+  <p class="sub">Who deliveries come from — keyed by supplier name. Import/dispatch rates and delivery-day fields support landed-cost and ordering-schedule work later.</p>
 
   <div id="signedOutNotice" class="note" style="display:none;">
     Not signed in — go to the <a href="index.html" style="color:inherit; text-decoration:underline;">Dashboard</a> to sign in. Your session will carry over here.
@@ -43,7 +43,7 @@
 <script src="js/sheets.js?v=1"></script>
 <script src="js/util.js?v=1"></script>
 <script src="js/dialog-guard.js?v=1"></script>
-<script src="js/crud-page.js?v=6"></script>
+<script src="js/crud-page.js?v=7"></script>
 <script>
   function requireAuth() {
     const cfg = getStoredConfig();
@@ -60,18 +60,20 @@
       mount: '#suppliersMount',
       title: 'Suppliers',
       tab: 'Suppliers',
-      headers: ['ID', 'NAME', 'CONTACT', 'NOTES'],
-      autoId: 'SUP',
+      headers: ['Supplier name','Country','Currency','Lead time (weeks)','Import rate (%)','Dispatch rate (%)','Delivers from','Delivers to','Ordering schedule','Contact email','Notes'],
+      autoId: null,
       fields: [
-        { key: 'NAME', label: 'Name', type: 'text', required: true },
-        { key: 'CONTACT', label: 'Contact', type: 'text', placeholder: 'Phone, email, or account manager' },
-        { key: 'NOTES', label: 'Notes', type: 'textarea' }
-      ],
-      sample: [
-        ['', 'AMF/Odéon', 'orders@amf-odeon.example', ''],
-        ['', 'Fen Farm Dairy', 'sales@fenfarmdairy.example', ''],
-        ['', 'Valsana', 'uk@valsana.example', ''],
-        ['', 'St Jude Cheese', 'hello@stjudecheese.example', '']
+        { key: 'Supplier name', label: 'Supplier name', type: 'text', required: true },
+        { key: 'Country', label: 'Country', type: 'text', placeholder: 'e.g. France' },
+        { key: 'Currency', label: 'Currency', type: 'text', placeholder: 'e.g. EUR' },
+        { key: 'Lead time (weeks)', label: 'Lead time (weeks)', type: 'number' },
+        { key: 'Import rate (%)', label: 'Import rate (%)', type: 'number' },
+        { key: 'Dispatch rate (%)', label: 'Dispatch rate (%)', type: 'number' },
+        { key: 'Delivers from', label: 'Delivers from', type: 'select', options: ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday','Exact date given'] },
+        { key: 'Delivers to', label: 'Delivers to', type: 'select', options: ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday','Exact date given'] },
+        { key: 'Ordering schedule', label: 'Ordering schedule', type: 'text', placeholder: 'e.g. Weekly by Monday 5pm' },
+        { key: 'Contact email', label: 'Contact email', type: 'text' },
+        { key: 'Notes', label: 'Notes', type: 'textarea' }
       ]
     });
   });

@@ -102,7 +102,7 @@
       const deliveries = toObjects(deliveryRows);
 
       const productByCode = {};
-      products.forEach(p => { productByCode[p.CODE] = p; });
+      products.forEach(p => { productByCode[p['Product code']] = p; });
 
       const deliveryByKey = {};
       deliveries.forEach(d => {
@@ -146,7 +146,7 @@
         const prod = productByCode[a['PRODUCT CODE']];
         return {
           code: a['PRODUCT CODE'],
-          name: prod ? prod.NAME : '',
+          name: prod ? prod['Product name'] : '',
           batch: a['BATCH/LOT NUMBER'],
           qty: parseFloat(a['QTY ALLOCATED']) || 0,
           unit: del ? del.UNIT : '',
@@ -160,17 +160,17 @@
       // is chosen at cut time from whatever's available on the Stock page.
       const cutRows = orderLines
         .map(l => ({ line: l, prod: productByCode[l['PRODUCT CODE']] }))
-        .filter(x => x.prod && x.prod['CUT FROM'])
+        .filter(x => x.prod && x.prod['Cut from (code)'])
         .map(x => {
-          const parent = productByCode[x.prod['CUT FROM']];
+          const parent = productByCode[x.prod['Cut from (code)']];
           return {
-            code: x.prod.CODE,
-            name: x.prod.NAME,
+            code: x.prod['Product code'],
+            name: x.prod['Product name'],
             qty: parseFloat(x.line['QTY ORDERED']) || 0,
             unit: x.line.UNIT,
-            parentCode: x.prod['CUT FROM'],
-            parentName: parent ? parent.NAME : x.prod['CUT FROM'],
-            cutLife: x.prod['CUT LIFE DAYS']
+            parentCode: x.prod['Cut from (code)'],
+            parentName: parent ? parent['Product name'] : x.prod['Cut from (code)'],
+            cutLife: x.prod['Cut shelf life (days)']
           };
         });
 
@@ -182,7 +182,7 @@
         const prod = productByCode[l['PRODUCT CODE']];
         return {
           code: l['PRODUCT CODE'],
-          name: prod ? prod.NAME : '',
+          name: prod ? prod['Product name'] : '',
           ordered, allocated, unit: l.UNIT,
           short: allocated + 0.0001 < ordered
         };

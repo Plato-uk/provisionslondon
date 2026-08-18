@@ -131,7 +131,7 @@
       const allocations = toObjects(allocationRows);
 
       const productByCode = {};
-      products.forEach(p => { productByCode[p.CODE] = p; });
+      products.forEach(p => { productByCode[p['Product code']] = p; });
 
       // One entry per delivered batch: code|batch -> running totals.
       const batches = {};
@@ -206,7 +206,7 @@
     }
     tbody.innerHTML = summary.map(p => {
       const prod = productByCode[p.code];
-      const name = prod ? prod.NAME : '(unknown product)';
+      const name = prod ? prod['Product name'] : '(unknown product)';
       return `<tr>
         <td><strong>${escapeHtml(p.code)}</strong><br><span class="muted" style="font-size:12px;">${escapeHtml(name)}</span></td>
         <td class="num">${p.onHand.toFixed(2)} ${escapeHtml(p.unit)}</td>
@@ -224,7 +224,7 @@
     }
     tbody.innerHTML = batchList.map(b => {
       const prod = productByCode[b.code];
-      const name = prod ? prod.NAME : '(unknown product)';
+      const name = prod ? prod['Product name'] : '(unknown product)';
       const remainingClass = b.remaining < 0 ? 'neg' : '';
       const rowStyle = b.remaining <= 0.0001 ? 'opacity:0.5;' : '';
       return `<tr style="${rowStyle}">

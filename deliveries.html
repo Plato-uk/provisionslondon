@@ -43,7 +43,7 @@
 <script src="js/sheets.js?v=1"></script>
 <script src="js/util.js?v=1"></script>
 <script src="js/dialog-guard.js?v=1"></script>
-<script src="js/crud-page.js?v=6"></script>
+<script src="js/crud-page.js?v=7"></script>
 <script>
   function requireAuth() {
     const cfg = getStoredConfig();
@@ -64,8 +64,8 @@
       autoId: 'DEL',
       fields: [
         { key: 'DATE RECEIVED', label: 'Date received', type: 'date', required: true, default: 'today' },
-        { key: 'SUPPLIER', label: 'Supplier', type: 'ref', refTab: 'Suppliers', refValue: 'NAME', required: true },
-        { key: 'PRODUCT CODE', label: 'Product code', type: 'ref', refTab: 'Products', refValue: 'CODE', refLabel: 'NAME', required: true },
+        { key: 'SUPPLIER', label: 'Supplier', type: 'ref', refTab: 'Suppliers', refValue: 'Supplier name', required: true },
+        { key: 'PRODUCT CODE', label: 'Product code', type: 'ref', refTab: 'Products', refValue: 'Product code', refLabel: 'Product name', required: true },
         { key: 'BATCH/LOT NUMBER', label: 'Batch / lot number', type: 'text', required: true, placeholder: 'e.g. H-2831' },
         { key: 'BEST BEFORE DATE', label: 'Best before date', type: 'date', required: true },
         { key: 'QTY RECEIVED', label: 'Qty received', type: 'number', required: true },

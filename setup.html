@@ -50,18 +50,22 @@
 <script src="js/sheets.js?v=1"></script>
 <script>
   // Data model:
-  //   Products   — the item master. CODE is the business's own SKU, not a
-  //                generated ID, since that's how the team already refers
-  //                to stock. P2P/P2B/P2S PRICE are the three fixed selling
-  //                tiers (Provisions-to-Provisions, -Business, -Selfridges)
-  //                — any of the three can be left blank on a given product.
-  //                CUT FROM / CUT LIFE / PACK LIFE support cut-to-order
-  //                items (e.g. a wheel of cheese cut to pieces).
-  //   Suppliers  — who deliveries come from.
-  //   Customers  — who orders go to; PRICE TIER is one of P2P/P2B/P2S and
-  //                picks which of a product's three prices applies. Delivery
-  //                fields are placeholders for the later route-suggestion
-  //                feature.
+  //   Products   — the item master, keyed by the business's own product
+  //                code (not a generated ID). Reflects the real Xero-linked
+  //                schema: ordering/pricing basis, cost vs. landed cost,
+  //                cut-to-order fields (Cut from / Cut shelf life / Part-cut
+  //                shelf life / Target pack weight), and Xero item/account
+  //                codes + VAT rate for accounting sync. No per-tier selling
+  //                price lives here — Customers.Price list is a free-standing
+  //                tag (Standard / P2P / Selfridges), not yet linked to a
+  //                specific price on the product.
+  //   Suppliers  — keyed by supplier name (no generated ID). Import/dispatch
+  //                rates and delivery-day fields support future landed-cost
+  //                and ordering-schedule automation.
+  //   Customers  — keyed by customer name as it appears in Xero (no
+  //                generated ID). Price list is one of Standard/P2P/
+  //                Selfridges; delivery zone/route/day are placeholders for
+  //                the later route-suggestion feature.
   //   Deliveries — append-only goods-in log. Each row is one batch/lot
   //                arriving: BATCH/LOT NUMBER + BEST BEFORE DATE are what
   //                let stock be tracked and allocated down to a specific
@@ -85,15 +89,15 @@
   const REQUIRED_TABS = [
     {
       title: 'Products',
-      headers: ['CODE','NAME','CATEGORY','SUPPLIER','PRODUCER','CHILLED','UNIT TYPE','NOMINAL WEIGHT','COST','LANDED COST','CUT FROM','CUT LIFE DAYS','PACK LIFE DAYS','ACTIVE','NOTES','P2P PRICE','P2B PRICE','P2S PRICE']
+      headers: ['Product code','Product name','Category','Default supplier','Producer','Storage','Ordering unit','Units per case','Pricing basis','Nominal weight (kg)','Cost price £','Landed cost £','GP at list','Tolerance band (%)','Cut from (code)','Cut shelf life (days)','Part-cut shelf life (days)','Target pack weight (kg)','Xero item code','Xero account code','VAT rate','Active','Sellable','Notes']
     },
     {
       title: 'Suppliers',
-      headers: ['ID','NAME','CONTACT','NOTES']
+      headers: ['Supplier name','Country','Currency','Lead time (weeks)','Import rate (%)','Dispatch rate (%)','Delivers from','Delivers to','Ordering schedule','Contact email','Notes']
     },
     {
       title: 'Customers',
-      headers: ['ID','NAME','PRICE TIER','CONTACT','DELIVERY ADDRESS','DELIVERY NOTES']
+      headers: ['Customer name (as in Xero)','Your account ref','Delivery address','Delivery day','Delivery zone','Delivery route','Payment terms (days)','Direct Debit status','Min shelf life on receipt (days)','Price list','Discount (%)','Contact email','Active']
     },
     {
       title: 'Deliveries',

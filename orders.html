@@ -55,7 +55,7 @@
 <script src="js/sheets.js?v=1"></script>
 <script src="js/util.js?v=1"></script>
 <script src="js/dialog-guard.js?v=1"></script>
-<script src="js/crud-page.js?v=6"></script>
+<script src="js/crud-page.js?v=7"></script>
 <script>
   function requireAuth() {
     const cfg = getStoredConfig();
@@ -76,14 +76,14 @@
       autoId: 'ORD',
       fields: [
         { key: 'DATE', label: 'Date', type: 'date', required: true, default: 'today' },
-        { key: 'CUSTOMER', label: 'Customer', type: 'ref', refTab: 'Customers', refValue: 'NAME', required: true },
+        { key: 'CUSTOMER', label: 'Customer', type: 'ref', refTab: 'Customers', refValue: 'Customer name (as in Xero)', required: true },
         { key: 'DELIVERY DATE', label: 'Delivery date', type: 'date' },
         { key: 'STATUS', label: 'Status', type: 'select', options: ['New', 'Allocated', 'Picked', 'Cut', 'Packed', 'Dispatched'], required: true },
         { key: 'NOTES', label: 'Notes', type: 'textarea' }
       ],
       sample: [
-        ['', '2026-08-17', 'Selfridges Food Hall', '2026-08-19', 'New', ''],
-        ['', '2026-08-17', 'The Wine Society', '2026-08-20', 'New', '']
+        ['', '2026-08-17', 'Selfridges & Co.', '2026-08-19', 'New', ''],
+        ['', '2026-08-17', '107 Wine Bar & Shop (PIP Clapton Ltd)', '2026-08-20', 'New', '']
       ]
     });
 
@@ -95,7 +95,7 @@
       autoId: 'OL',
       fields: [
         { key: 'ORDER ID', label: 'Order', type: 'ref', refTab: 'Orders', refValue: 'ID', refLabel: 'CUSTOMER', required: true },
-        { key: 'PRODUCT CODE', label: 'Product code', type: 'ref', refTab: 'Products', refValue: 'CODE', refLabel: 'NAME', required: true },
+        { key: 'PRODUCT CODE', label: 'Product code', type: 'ref', refTab: 'Products', refValue: 'Product code', refLabel: 'Product name', required: true },
         { key: 'QTY ORDERED', label: 'Qty ordered', type: 'number', required: true },
         { key: 'UNIT', label: 'Unit', type: 'select', options: ['kg', 'pc'] },
         { key: 'STATUS', label: 'Status', type: 'select', options: ['New', 'Allocated', 'Picked', 'Cut', 'Packed'] },
@@ -116,7 +116,7 @@
       autoId: 'ALO',
       fields: [
         { key: 'ORDER LINE ID', label: 'Order line', type: 'ref', refTab: 'OrderLines', refValue: 'ID', refLabel: 'PRODUCT CODE', required: true },
-        { key: 'PRODUCT CODE', label: 'Product code', type: 'ref', refTab: 'Products', refValue: 'CODE', refLabel: 'NAME', required: true },
+        { key: 'PRODUCT CODE', label: 'Product code', type: 'ref', refTab: 'Products', refValue: 'Product code', refLabel: 'Product name', required: true },
         { key: 'BATCH/LOT NUMBER', label: 'Batch / lot number', type: 'ref', refTab: 'Deliveries', refValue: 'BATCH/LOT NUMBER', refLabel: 'PRODUCT CODE', required: true },
         { key: 'QTY ALLOCATED', label: 'Qty allocated', type: 'number', required: true },
         { key: 'ALLOCATED DATE', label: 'Allocated date', type: 'date', required: true, default: 'today' }
