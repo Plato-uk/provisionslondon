@@ -1,6 +1,6 @@
 // Generic "add + edit + remove" table bound to one Sheets tab. Every list
 // page (Products, Suppliers, Customers, Deliveries, Orders, OrderLines,
-// Allocations, Prices) configures one of these instead of hand-rolling its
+// Allocations) configures one of these instead of hand-rolling its
 // own fetch/append/update/delete logic, so behaviour — including how a row
 // gets deleted or overwritten (via its real sheet row index), and how the
 // form's unsaved-changes guard works — stays identical across tables.
@@ -120,7 +120,10 @@ async function initCrudTable(config) {
     if (f.type === 'checkbox') return `<input type="checkbox" id="${id}">`;
     if (f.type === 'number') return `<input type="number" step="any" id="${id}" placeholder="${escapeHtml(f.placeholder || '')}">`;
     if (f.type === 'date') return `<input type="date" id="${id}">`;
-    if (f.type === 'select') return `<select id="${id}"><option value="">—</option>${f.options.map(o => `<option value="${escapeHtml(o)}">${escapeHtml(o)}</option>`).join('')}</select>`;
+    if (f.type === 'select') return `<select id="${id}"><option value="">—</option>${f.options.map(o => {
+      const opt = typeof o === 'object' ? o : { value: o, label: o };
+      return `<option value="${escapeHtml(opt.value)}">${escapeHtml(opt.label)}</option>`;
+    }).join('')}</select>`;
     if (f.type === 'ref') return `<select id="${id}"><option value="">Loading…</option></select>`;
     return `<input id="${id}" placeholder="${escapeHtml(f.placeholder || '')}">`;
   }

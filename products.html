@@ -30,24 +30,20 @@
 
 <main>
   <h2>Products</h2>
-  <p class="sub">The item master — one row per SKU, keyed by your own product code. Per-customer-tier pricing lives below in a separate table since the same product can sell at different prices to different tiers.</p>
+  <p class="sub">The item master — one row per SKU, keyed by your own product code. Each product carries up to three fixed prices — P2P, P2B, and PCS — any of which can be left blank. A customer's <a href="customers.html">Price tier</a> picks which one applies to their orders.</p>
 
   <div id="signedOutNotice" class="note" style="display:none;">
     Not signed in — go to the <a href="index.html" style="color:inherit; text-decoration:underline;">Dashboard</a> to sign in. Your session will carry over here.
   </div>
 
   <div id="productsMount"></div>
-
-  <h2 style="margin-top:32px;">Prices</h2>
-  <p class="sub">Per-customer-tier price for a product. TIER is free text — use "Standard" for your default rate, or a customer/group name for a bespoke rate.</p>
-  <div id="pricesMount"></div>
 </main>
 
 <script src="js/config.js?v=1"></script>
 <script src="js/sheets.js?v=1"></script>
 <script src="js/util.js?v=1"></script>
 <script src="js/dialog-guard.js?v=1"></script>
-<script src="js/crud-page.js?v=4"></script>
+<script src="js/crud-page.js?v=5"></script>
 <script>
   function requireAuth() {
     const cfg = getStoredConfig();
@@ -64,7 +60,7 @@
       mount: '#productsMount',
       title: 'Products',
       tab: 'Products',
-      headers: ['CODE','NAME','CATEGORY','SUPPLIER','PRODUCER','CHILLED','UNIT TYPE','NOMINAL WEIGHT','COST','LANDED COST','CUT FROM','CUT LIFE DAYS','PACK LIFE DAYS','ACTIVE','NOTES'],
+      headers: ['CODE','NAME','CATEGORY','SUPPLIER','PRODUCER','CHILLED','UNIT TYPE','NOMINAL WEIGHT','COST','LANDED COST','P2P PRICE','P2B PRICE','PCS PRICE','CUT FROM','CUT LIFE DAYS','PACK LIFE DAYS','ACTIVE','NOTES'],
       autoId: null,
       fields: [
         { key: 'CODE', label: 'Code', type: 'text', required: true, placeholder: 'e.g. CCS050' },
@@ -77,6 +73,9 @@
         { key: 'NOMINAL WEIGHT', label: 'Nominal weight (kg)', type: 'number' },
         { key: 'COST', label: 'Cost (£)', type: 'number' },
         { key: 'LANDED COST', label: 'Landed cost (£)', type: 'number' },
+        { key: 'P2P PRICE', label: 'P2P price (£)', type: 'number', placeholder: 'Provisions to Provisions' },
+        { key: 'P2B PRICE', label: 'P2B price (£)', type: 'number', placeholder: 'Provisions to Business' },
+        { key: 'PCS PRICE', label: 'PCS price (£)', type: 'number', placeholder: 'Provisions to Selfridges' },
         { key: 'CUT FROM', label: 'Cut from (code)', type: 'text', placeholder: 'Whole product this is cut from, if any' },
         { key: 'CUT LIFE DAYS', label: 'Cut life (days)', type: 'number' },
         { key: 'PACK LIFE DAYS', label: 'Pack life (days)', type: 'number' },
@@ -84,31 +83,11 @@
         { key: 'NOTES', label: 'Notes', type: 'textarea' }
       ],
       sample: [
-        ['CCS050', 'Brie Dongé 3kg', 'Cheese', 'AMF/Odéon', 'Dongé', 'TRUE', 'Per kg', 3, 12.7359, 17.1935, '', '', '', 'TRUE', ''],
-        ['CCS041', 'Baron Bigod 1kg', 'Cheese', 'Fen Farm Dairy', 'Fen Farm Dairy', 'TRUE', 'Per kg', 1, 18.15, 20.8725, '', '', '', 'TRUE', ''],
-        ['CCS008', 'St Félicien in Jar 180g', 'Cheese', 'AMF/Odéon', 'Étoile du Vercors', 'TRUE', 'Per unit', '', 3.0883, 4.1692, '', '', '', 'TRUE', ''],
-        ['CCSH012W', 'Toma Piemontese — whole 3kg', 'Cheese', 'Valsana', 'Caseificio Longo', 'TRUE', 'Per kg', 3, 9.3539, 11.973, '', '', 28, 'TRUE', 'Whole wheel — can be cut to order'],
-        ['CCSH012C', 'Toma Piemontese — cut', 'Cheese', 'Valsana', 'Caseificio Longo', 'TRUE', 'Per kg', '', 9.3539, 11.973, 'CCSH012W', 5, 21, 'TRUE', 'Cut from CCSH012W']
-      ]
-    });
-
-    initCrudTable({
-      mount: '#pricesMount',
-      title: 'Prices',
-      tab: 'Prices',
-      headers: ['ID', 'PRODUCT CODE', 'TIER', 'PRICE'],
-      autoId: 'PRC',
-      fields: [
-        { key: 'PRODUCT CODE', label: 'Product code', type: 'ref', refTab: 'Products', refValue: 'CODE', refLabel: 'NAME', required: true },
-        { key: 'TIER', label: 'Tier', type: 'text', required: true, placeholder: 'e.g. Standard, Trade, Selfridges' },
-        { key: 'PRICE', label: 'Price (£)', type: 'number', required: true }
-      ],
-      sample: [
-        ['', 'CCS050', 'Standard', 25.0],
-        ['', 'CCS050', 'P2P', 17.19],
-        ['', 'CCS041', 'Standard', 32.0],
-        ['', 'CCS008', 'Standard', 5.95],
-        ['', 'CCS008', 'Selfridges', 3.3]
+        ['CCS050', 'Brie Dongé 3kg', 'Cheese', 'AMF/Odéon', 'Dongé', 'TRUE', 'Per kg', 3, 12.7359, 17.1935, 17.19, 21.00, 25.00, '', '', '', 'TRUE', ''],
+        ['CCS041', 'Baron Bigod 1kg', 'Cheese', 'Fen Farm Dairy', 'Fen Farm Dairy', 'TRUE', 'Per kg', 1, 18.15, 20.8725, 20.87, 26.00, 32.00, '', '', '', 'TRUE', ''],
+        ['CCS008', 'St Félicien in Jar 180g', 'Cheese', 'AMF/Odéon', 'Étoile du Vercors', 'TRUE', 'Per unit', '', 3.0883, 4.1692, 4.17, 4.80, 5.95, '', '', '', 'TRUE', ''],
+        ['CCSH012W', 'Toma Piemontese — whole 3kg', 'Cheese', 'Valsana', 'Caseificio Longo', 'TRUE', 'Per kg', 3, 9.3539, 11.973, 11.97, 14.50, 18.00, '', '', 28, 'TRUE', 'Whole wheel — can be cut to order'],
+        ['CCSH012C', 'Toma Piemontese — cut', 'Cheese', 'Valsana', 'Caseificio Longo', 'TRUE', 'Per kg', '', 9.3539, 11.973, '', '', '', 'CCSH012W', 5, 21, 'TRUE', 'Cut from CCSH012W']
       ]
     });
   });

@@ -52,15 +52,16 @@
   // Data model:
   //   Products   — the item master. CODE is the business's own SKU, not a
   //                generated ID, since that's how the team already refers
-  //                to stock. CUT FROM / CUT LIFE / PACK LIFE support
-  //                cut-to-order items (e.g. a wheel of cheese cut to pieces).
-  //   Prices     — per-customer-tier price list, kept off Products because
-  //                the same product sells at different prices per tier
-  //                (mirrors the Suppliers/SupplierIngredients split).
+  //                to stock. P2P/P2B/PCS PRICE are the three fixed selling
+  //                tiers (Provisions-to-Provisions, -Business, -Selfridges)
+  //                — any of the three can be left blank on a given product.
+  //                CUT FROM / CUT LIFE / PACK LIFE support cut-to-order
+  //                items (e.g. a wheel of cheese cut to pieces).
   //   Suppliers  — who deliveries come from.
-  //   Customers  — who orders go to; PRICE TIER picks which Prices row
-  //                applies. Delivery fields are placeholders for the
-  //                later route-suggestion feature.
+  //   Customers  — who orders go to; PRICE TIER is one of P2P/P2B/PCS and
+  //                picks which of a product's three prices applies. Delivery
+  //                fields are placeholders for the later route-suggestion
+  //                feature.
   //   Deliveries — append-only goods-in log. Each row is one batch/lot
   //                arriving: BATCH/LOT NUMBER + BEST BEFORE DATE are what
   //                let stock be tracked and allocated down to a specific
@@ -76,11 +77,7 @@
   const REQUIRED_TABS = [
     {
       title: 'Products',
-      headers: ['CODE','NAME','CATEGORY','SUPPLIER','PRODUCER','CHILLED','UNIT TYPE','NOMINAL WEIGHT','COST','LANDED COST','CUT FROM','CUT LIFE DAYS','PACK LIFE DAYS','ACTIVE','NOTES']
-    },
-    {
-      title: 'Prices',
-      headers: ['ID','PRODUCT CODE','TIER','PRICE']
+      headers: ['CODE','NAME','CATEGORY','SUPPLIER','PRODUCER','CHILLED','UNIT TYPE','NOMINAL WEIGHT','COST','LANDED COST','P2P PRICE','P2B PRICE','PCS PRICE','CUT FROM','CUT LIFE DAYS','PACK LIFE DAYS','ACTIVE','NOTES']
     },
     {
       title: 'Suppliers',
