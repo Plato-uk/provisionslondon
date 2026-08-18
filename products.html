@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Provisions — Products</title>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=Roboto+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css?v=3">
+</head>
+<body>
+
+<div class="app-sidebar">
+  <a class="brand" href="index.html" title="Provisions UK">P</a>
+  <nav class="app-nav">
+    <a href="index.html" title="Dashboard"><span class="rail-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></span><span class="rail-label">Dashboard</span></a>
+    <a href="products.html" aria-current="page" title="Products"><span class="rail-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7.5l9-4 9 4-9 4-9-4z"/><path d="M3 7.5v9l9 4 9-4v-9"/><path d="M12 11.5v9"/></svg></span><span class="rail-label">Products</span></a>
+    <a href="suppliers.html" title="Suppliers"><span class="rail-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="12" height="9" rx="1"/><path d="M14 10h4l3 3v3h-7z"/><circle cx="7" cy="18" r="1.8"/><circle cx="17.5" cy="18" r="1.8"/></svg></span><span class="rail-label">Suppliers</span></a>
+    <a href="customers.html" title="Customers"><span class="rail-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20c0-3.6 2.9-6.2 6.5-6.2s6.5 2.6 6.5 6.2"/><circle cx="17.5" cy="9" r="2.3"/><path d="M15.8 13.5c2.6.5 4.2 2.4 4.2 5"/></svg></span><span class="rail-label">Customers</span></a>
+    <a href="deliveries.html" title="Deliveries"><span class="rail-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v10"/><path d="M8 9l4 4 4-4"/><path d="M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"/></svg></span><span class="rail-label">Deliveries</span></a>
+    <a href="orders.html" title="Orders"><span class="rail-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 3.5h6a1 1 0 0 1 1 1V6H8V4.5a1 1 0 0 1 1-1z"/><path d="M8.5 11h7M8.5 14.5h7M8.5 18h4"/></svg></span><span class="rail-label">Orders</span></a>
+    <a href="setup.html" title="Setup"><span class="rail-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2.2"/><circle cx="7" cy="17" r="2.2"/></svg></span><span class="rail-label">Setup</span></a>
+  </nav>
+</div>
+
+<main>
+  <h2>Products</h2>
+  <p class="sub">The item master — one row per SKU, keyed by your own product code. Per-customer-tier pricing lives below in a separate table since the same product can sell at different prices to different tiers.</p>
+
+  <div id="signedOutNotice" class="note" style="display:none;">
+    Not signed in — go to the <a href="index.html" style="color:inherit; text-decoration:underline;">Dashboard</a> to sign in. Your session will carry over here.
+  </div>
+
+  <div id="productsMount"></div>
+
+  <h2 style="margin-top:32px;">Prices</h2>
+  <p class="sub">Per-customer-tier price for a product. TIER is free text — use "Standard" for your default rate, or a customer/group name for a bespoke rate.</p>
+  <div id="pricesMount"></div>
+</main>
+
+<script src="js/config.js?v=1"></script>
+<script src="js/sheets.js?v=1"></script>
+<script src="js/util.js?v=1"></script>
+<script src="js/crud-page.js?v=1"></script>
+<script>
+  function requireAuth() {
+    const cfg = getStoredConfig();
+    const token = tryResumeSession();
+    const ok = !!(token && cfg.spreadsheetId);
+    document.getElementById('signedOutNotice').style.display = ok ? 'none' : 'block';
+    return ok;
+  }
+
+  window.addEventListener('load', () => {
+    if (!requireAuth()) return;
+
+    initCrudTable({
+      mount: '#productsMount',
+      title: 'Products',
+      tab: 'Products',
+      headers: ['CODE','NAME','CATEGORY','SUPPLIER','PRODUCER','CHILLED','UNIT TYPE','NOMINAL WEIGHT','COST','LANDED COST','CUT FROM','CUT LIFE DAYS','PACK LIFE DAYS','ACTIVE','NOTES'],
+      autoId: null,
+      fields: [
+        { key: 'CODE', label: 'Code', type: 'text', required: true, placeholder: 'e.g. CCS050' },
+        { key: 'NAME', label: 'Name', type: 'text', required: true, placeholder: 'e.g. Brie Dongé 3kg' },
+        { key: 'CATEGORY', label: 'Category', type: 'text', placeholder: 'e.g. Cheese' },
+        { key: 'SUPPLIER', label: 'Supplier', type: 'ref', refTab: 'Suppliers', refValue: 'NAME' },
+        { key: 'PRODUCER', label: 'Producer', type: 'text' },
+        { key: 'CHILLED', label: 'Chilled', type: 'checkbox' },
+        { key: 'UNIT TYPE', label: 'Unit type', type: 'select', options: ['Per kg', 'Per unit'] },
+        { key: 'NOMINAL WEIGHT', label: 'Nominal weight (kg)', type: 'number' },
+        { key: 'COST', label: 'Cost (£)', type: 'number' },
+        { key: 'LANDED COST', label: 'Landed cost (£)', type: 'number' },
+        { key: 'CUT FROM', label: 'Cut from (code)', type: 'text', placeholder: 'Whole product this is cut from, if any' },
+        { key: 'CUT LIFE DAYS', label: 'Cut life (days)', type: 'number' },
+        { key: 'PACK LIFE DAYS', label: 'Pack life (days)', type: 'number' },
+        { key: 'ACTIVE', label: 'Active', type: 'checkbox' },
+        { key: 'NOTES', label: 'Notes', type: 'textarea' }
+      ],
+      sample: [
+        ['CCS050', 'Brie Dongé 3kg', 'Cheese', 'AMF/Odéon', 'Dongé', 'TRUE', 'Per kg', 3, 12.7359, 17.1935, '', '', '', 'TRUE', ''],
+        ['CCS041', 'Baron Bigod 1kg', 'Cheese', 'Fen Farm Dairy', 'Fen Farm Dairy', 'TRUE', 'Per kg', 1, 18.15, 20.8725, '', '', '', 'TRUE', ''],
+        ['CCS008', 'St Félicien in Jar 180g', 'Cheese', 'AMF/Odéon', 'Étoile du Vercors', 'TRUE', 'Per unit', '', 3.0883, 4.1692, '', '', '', 'TRUE', ''],
+        ['CCSH012W', 'Toma Piemontese — whole 3kg', 'Cheese', 'Valsana', 'Caseificio Longo', 'TRUE', 'Per kg', 3, 9.3539, 11.973, '', '', 28, 'TRUE', 'Whole wheel — can be cut to order'],
+        ['CCSH012C', 'Toma Piemontese — cut', 'Cheese', 'Valsana', 'Caseificio Longo', 'TRUE', 'Per kg', '', 9.3539, 11.973, 'CCSH012W', 5, 21, 'TRUE', 'Cut from CCSH012W']
+      ]
+    });
+
+    initCrudTable({
+      mount: '#pricesMount',
+      title: 'Prices',
+      tab: 'Prices',
+      headers: ['ID', 'PRODUCT CODE', 'TIER', 'PRICE'],
+      autoId: 'PRC',
+      fields: [
+        { key: 'PRODUCT CODE', label: 'Product code', type: 'ref', refTab: 'Products', refValue: 'CODE', refLabel: 'NAME', required: true },
+        { key: 'TIER', label: 'Tier', type: 'text', required: true, placeholder: 'e.g. Standard, Trade, Selfridges' },
+        { key: 'PRICE', label: 'Price (£)', type: 'number', required: true }
+      ],
+      sample: [
+        ['', 'CCS050', 'Standard', 25.0],
+        ['', 'CCS050', 'P2P', 17.19],
+        ['', 'CCS041', 'Standard', 32.0],
+        ['', 'CCS008', 'Standard', 5.95],
+        ['', 'CCS008', 'Selfridges', 3.3]
+      ]
+    });
+  });
+</script>
+</body>
+</html>
