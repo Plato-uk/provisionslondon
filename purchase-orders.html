@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Provisions — Purchase Orders</title>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=Roboto+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css?v=7">
+<link rel="icon" type="image/png" href="img/favicon.png">
+</head>
+<body>
+
+<div class="app-sidebar">
+  <a class="brand" href="index.html" title="Provisions UK"><img src="img/logo.png" alt="Provisions"></a>
+  <nav class="app-nav">
+    <a href="index.html" title="Dashboard"><span class="rail-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></span><span class="rail-label">Dashboard</span></a>
+    <a href="products.html" title="Products"><span class="rail-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7.5l9-4 9 4-9 4-9-4z"/><path d="M3 7.5v9l9 4 9-4v-9"/><path d="M12 11.5v9"/></svg></span><span class="rail-label">Products</span></a>
+    <a href="suppliers.html" title="Suppliers"><span class="rail-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="12" height="9" rx="1"/><path d="M14 10h4l3 3v3h-7z"/><circle cx="7" cy="18" r="1.8"/><circle cx="17.5" cy="18" r="1.8"/></svg></span><span class="rail-label">Suppliers</span></a>
+    <a href="customers.html" title="Customers"><span class="rail-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20c0-3.6 2.9-6.2 6.5-6.2s6.5 2.6 6.5 6.2"/><circle cx="17.5" cy="9" r="2.3"/><path d="M15.8 13.5c2.6.5 4.2 2.4 4.2 5"/></svg></span><span class="rail-label">Customers</span></a>
+    <a href="purchase-orders.html" aria-current="page" title="Purchase Orders"><span class="rail-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v10"/><path d="M8 9l4 4 4-4"/><path d="M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"/></svg></span><span class="rail-label">Purchase orders</span></a>
+    <a href="stock.html" title="Stock"><span class="rail-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10"/><path d="M12 20V4"/><path d="M20 20v-7"/></svg></span><span class="rail-label">Stock</span></a>
+    <a href="orders.html" title="Orders"><span class="rail-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 3.5h6a1 1 0 0 1 1 1V6H8V4.5a1 1 0 0 1 1-1z"/><path d="M8.5 11h7M8.5 14.5h7M8.5 18h4"/></svg></span><span class="rail-label">Orders</span></a>
+    <a href="lists.html" title="Lists"><span class="rail-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5h9M9 12h9M9 19h9"/><path d="M4.5 5l1 1 2-2M4.5 12l1 1 2-2M4.5 19l1 1 2-2"/></svg></span><span class="rail-label">Lists</span></a>
+    <a href="setup.html" title="Setup"><span class="rail-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2.2"/><circle cx="7" cy="17" r="2.2"/></svg></span><span class="rail-label">Setup</span></a>
+  </nav>
+</div>
+
+<main>
+  <h2>Purchase Orders</h2>
+  <p class="sub">Place orders with suppliers, see what's expected in and roughly when, then receive it into stock with a lot number and best-before date per item.</p>
+
+  <div id="signedOutNotice" class="note" style="display:none;">
+    Not signed in — go to the <a href="index.html" style="color:inherit; text-decoration:underline;">Dashboard</a> to sign in. Your session will carry over here.
+  </div>
+
+  <div id="poCard" style="display:none;">
+    <div class="panel-h" style="border:none; background:none; padding:0 0 8px;">
+      <h3 style="text-transform:none; letter-spacing:normal; font-size:15px; color:var(--ink); font-weight:600;">Purchase Orders</h3>
+      <button type="button" class="btn add-btn sm" id="newPoBtn" style="margin:0;">+ New PO</button>
+      <button type="button" class="btn ghost sm" id="reloadBtn" style="margin:0;">Reload</button>
+    </div>
+    <div class="panel"><div class="scroll" style="overflow-x:auto;">
+      <table id="poTable">
+        <thead><tr><th>ID</th><th>Supplier</th><th>Order date</th><th>Expected delivery</th><th>Status</th><th class="num">Items</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div></div>
+    <div id="status" class="mono" style="margin-top:8px; font-size:12.5px; color:var(--steel);"></div>
+  </div>
+</main>
+
+<dialog id="poDialog">
+  <form id="poForm"></form>
+</dialog>
+
+<script src="js/config.js?v=1"></script>
+<script src="js/sheets.js?v=1"></script>
+<script src="js/util.js?v=1"></script>
+<script src="js/dialog-guard.js?v=1"></script>
+<script src="js/daterange.js?v=1"></script>
+<script>
+  let token = null;
+  let suppliers = [];
+  let products = [];
+  let poRowsData = [];   // [{ rowNumber, obj }] from PurchaseOrders
+  let polRowsData = [];  // [{ rowNumber, obj }] from PurchaseOrderLines
+  let draftLines = [];   // working line items while creating a PO
+  let receiveLines = []; // working line items while receiving a PO
+  let dateRangePicker = null;
+  let dirtyCheck = null; // set per dialog mode; attachDiscardGuard calls it via a stable wrapper
+
+  const statusEl = document.getElementById('status');
+  const dialogEl = document.getElementById('poDialog');
+  const form = document.getElementById('poForm');
+  const guard = attachDiscardGuard(dialogEl, { scope: form, isDirtyOverride: () => dirtyCheck ? dirtyCheck() : false });
+
+  function setStatus(msg, kind) {
+    statusEl.textContent = msg;
+    statusEl.style.color = kind === 'error' ? 'var(--crit)' : kind === 'ok' ? 'var(--ok)' : 'var(--steel)';
+  }
+
+  function setDlgStatus(msg, kind) {
+    const el = form.querySelector('#poDlgStatus');
+    if (!el) return;
+    el.textContent = msg;
+    el.style.color = kind === 'error' ? 'var(--crit)' : kind === 'ok' ? 'var(--ok)' : 'var(--steel)';
+  }
+
+  function requireAuth() {
+    const cfg = getStoredConfig();
+    token = tryResumeSession();
+    const ok = !!(token && cfg.spreadsheetId);
+    document.getElementById('signedOutNotice').style.display = ok ? 'none' : 'block';
+    document.getElementById('poCard').style.display = ok ? 'block' : 'none';
+    return ok;
+  }
+
+  async function ensureAuth(statusFn) {
+    const cfg = getStoredConfig();
+    token = tryResumeSession();
+    if (!token || !cfg.spreadsheetId) { (statusFn || setStatus)('Sign in on the Dashboard first.', 'error'); return null; }
+    return cfg;
+  }
+
+  function toRowObjects(rows) {
+    if (!rows.length) return [];
+    const [head, ...rest] = rows;
+    return rest.map((r, i) => {
+      const o = {};
+      head.forEach((h, idx) => { o[h] = r[idx] ?? ''; });
+      return { rowNumber: i + 2, obj: o };
+    });
+  }
+
+  function todayIso() { return new Date().toISOString().slice(0, 10); }
+
+  function fmtDateShort(iso) {
+    if (!iso) return '';
+    const d = new Date(iso + 'T00:00:00');
+    if (isNaN(d)) return iso;
+    return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  }
+
+  function fmtDateRange(s, e) {
+    if (!s) return '—';
+    if (!e || e === s) return fmtDateShort(s);
+    return `${fmtDateShort(s)} – ${fmtDateShort(e)}`;
+  }
+
+  function statusTag(status) {
+    const s = status || 'Ordered';
+    const cls = s === 'Delivered' ? 't-ok' : s === 'Cancelled' ? 't-crit' : 't-chill';
+    return `<span class="tag ${cls}">${escapeHtml(s)}</span>`;
+  }
+
+  function productName(code) {
+    const p = products.find(p => p['Product code'] === code);
+    return p ? p['Product name'] : code;
+  }
+
+  // ---- load + list ----
+
+  async function loadAll() {
+    if (!requireAuth()) return;
+    const cfg = getStoredConfig();
+    setStatus('Loading...');
+    try {
+      const [supplierRows, productRows, poRows, polRows] = await Promise.all([
+        sheetsGet(cfg.spreadsheetId, 'Suppliers!A:Z', token),
+        sheetsGet(cfg.spreadsheetId, 'Products!A:Z', token),
+        sheetsGet(cfg.spreadsheetId, 'PurchaseOrders!A:Z', token),
+        sheetsGet(cfg.spreadsheetId, 'PurchaseOrderLines!A:Z', token)
+      ]);
+      suppliers = toRowObjects(supplierRows).map(r => r.obj);
+      products = toRowObjects(productRows).map(r => r.obj);
+      poRowsData = toRowObjects(poRows);
+      polRowsData = toRowObjects(polRows);
+      renderTable();
+      setStatus(`Loaded ${poRowsData.length} purchase order(s).`, 'ok');
+    } catch (err) {
+      setStatus('Error loading: ' + err.message, 'error');
+    }
+  }
+
+  function sortPOs(list) {
+    const rank = r => (r.obj.STATUS === 'Ordered' || !r.obj.STATUS) ? 0 : 1;
+    return [...list].sort((a, b) => {
+      const r = rank(a) - rank(b);
+      if (r !== 0) return r;
+      if (rank(a) === 0) return (a.obj['EXPECTED START DATE'] || '9999').localeCompare(b.obj['EXPECTED START DATE'] || '9999');
+      return (b.obj['ORDER DATE'] || '').localeCompare(a.obj['ORDER DATE'] || '');
+    });
+  }
+
+  function renderTable() {
+    const tbody = document.querySelector('#poTable tbody');
+    if (!poRowsData.length) {
+      tbody.innerHTML = `<tr><td colspan="6" class="empty" style="padding:18px;">No purchase orders yet.</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = sortPOs(poRowsData).map(r => {
+      const o = r.obj;
+      const itemCount = polRowsData.filter(l => l.obj['PO ID'] === o.ID).length;
+      return `<tr data-id="${escapeHtml(o.ID)}" style="cursor:pointer;">
+        <td class="code">${escapeHtml(o.ID)}</td>
+        <td>${escapeHtml(o.SUPPLIER)}</td>
+        <td>${escapeHtml(fmtDateShort(o['ORDER DATE']))}</td>
+        <td>${escapeHtml(fmtDateRange(o['EXPECTED START DATE'], o['EXPECTED END DATE']))}</td>
+        <td>${statusTag(o.STATUS)}</td>
+        <td class="num">${itemCount}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  document.getElementById('poTable').addEventListener('click', (e) => {
+    const tr = e.target.closest('tr[data-id]');
+    if (tr) openViewDialog(tr.dataset.id);
+  });
+
+  // ---- create PO ----
+
+  function renderCreateForm() {
+    draftLines = [];
+    form.innerHTML = `
+      <div class="dlg-h">New Purchase Order</div>
+      <div class="dlg-b">
+        <div class="row">
+          <div class="col field">
+            <label>Supplier *</label>
+            <select id="po_supplier"><option value="">Select a supplier…</option>${suppliers.map(s => `<option value="${escapeHtml(s['Supplier name'])}">${escapeHtml(s['Supplier name'])}</option>`).join('')}</select>
+          </div>
+          <div class="col field">
+            <label>Order date</label>
+            <input type="date" id="po_orderDate" value="${todayIso()}">
+          </div>
+        </div>
+        <div class="field">
+          <label>Expected delivery *</label>
+          <div id="po_dateRange" class="daterange"></div>
+        </div>
+
+        <div class="field">
+          <label>Add item</label>
+          <div class="inline">
+            <div class="field" style="flex:2; margin-bottom:0;">
+              <select id="po_addProduct" disabled><option value="">Pick a supplier first…</option></select>
+            </div>
+            <div class="field" style="max-width:90px; margin-bottom:0;">
+              <input type="number" step="any" id="po_addQty" placeholder="Qty">
+            </div>
+            <div class="field" style="max-width:80px; margin-bottom:0;">
+              <select id="po_addUnit"><option value="kg">kg</option><option value="pc">pc</option></select>
+            </div>
+            <button type="button" class="btn ghost sm" id="po_addLineBtn">+ Add</button>
+          </div>
+        </div>
+
+        <table class="form" id="po_linesTable">
+          <thead><tr><th>Product</th><th class="num">Qty</th><th>Unit</th><th></th></tr></thead>
+          <tbody></tbody>
+        </table>
+
+        <div class="field" style="margin-top:12px;">
+          <label>Notes</label>
+          <textarea id="po_notes" placeholder="Optional"></textarea>
+        </div>
+        <div id="poDlgStatus" class="mono" style="margin-top:10px; font-size:12.5px; color:var(--steel);"></div>
+      </div>
+      <div class="dlg-f">
+        <button type="button" class="btn ghost" data-cancel>Cancel</button>
+        <button type="submit" class="btn" id="poSubmitBtn">Create PO</button>
+      </div>
+    `;
+    renderDraftLines();
+    dateRangePicker = createDateRangePicker({ mount: '#po_dateRange' });
+
+    const supplierSel = form.querySelector('#po_supplier');
+    const addProductSel = form.querySelector('#po_addProduct');
+
+    dirtyCheck = () => !!supplierSel.value || draftLines.length > 0
+      || !!form.querySelector('#po_notes').value.trim()
+      || !!dateRangePicker.getRange().start;
+
+    form.onchange = (e) => {
+      if (e.target !== supplierSel) return;
+      const supplier = supplierSel.value;
+      draftLines = []; // staged lines belonged to the old supplier's catalog
+      renderDraftLines();
+      if (!supplier) {
+        addProductSel.innerHTML = `<option value="">Pick a supplier first…</option>`;
+        addProductSel.disabled = true;
+        return;
+      }
+      const supplierProducts = products.filter(p => p['Default supplier'] === supplier);
+      addProductSel.innerHTML = supplierProducts.length
+        ? `<option value="">Select a product…</option>` + supplierProducts.map(p => `<option value="${escapeHtml(p['Product code'])}">${escapeHtml(p['Product name'])}</option>`).join('')
+        : `<option value="">No products set up for this supplier</option>`;
+      addProductSel.disabled = !supplierProducts.length;
+    };
+
+    form.onclick = (e) => {
+      if (e.target.closest('[data-cancel]')) { guard.guardedClose(); return; }
+      if (e.target.closest('#po_addLineBtn')) {
+        const code = addProductSel.value;
+        const qtyInput = form.querySelector('#po_addQty');
+        const qty = parseFloat(qtyInput.value);
+        const unit = form.querySelector('#po_addUnit').value;
+        if (!code) { setDlgStatus('Pick a product first.', 'error'); return; }
+        if (!qty || qty <= 0) { setDlgStatus('Enter a quantity.', 'error'); return; }
+        if (draftLines.some(l => l.code === code)) { setDlgStatus('That product is already on this PO — remove it first to change the quantity.', 'error'); return; }
+        draftLines.push({ code, name: productName(code), qty, unit });
+        qtyInput.value = '';
+        setDlgStatus('');
+        renderDraftLines();
+        return;
+      }
+      const rmBtn = e.target.closest('[data-remove-line]');
+      if (rmBtn) { draftLines.splice(parseInt(rmBtn.dataset.removeLine, 10), 1); renderDraftLines(); }
+    };
+
+    form.onsubmit = handleCreateSubmit;
+  }
+
+  function renderDraftLines() {
+    const tbody = form.querySelector('#po_linesTable tbody');
+    if (!draftLines.length) {
+      tbody.innerHTML = `<tr><td colspan="4" class="empty" style="padding:12px;">No items added yet.</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = draftLines.map((l, i) => `
+      <tr>
+        <td>${escapeHtml(l.name)}</td>
+        <td class="num">${escapeHtml(l.qty)}</td>
+        <td>${escapeHtml(l.unit)}</td>
+        <td><button type="button" class="btn ghost sm" data-remove-line="${i}">Remove</button></td>
+      </tr>
+    `).join('');
+  }
+
+  async function handleCreateSubmit(e) {
+    e.preventDefault();
+    const cfg = await ensureAuth(setDlgStatus);
+    if (!cfg) return;
+
+    const supplier = form.querySelector('#po_supplier').value;
+    const orderDate = form.querySelector('#po_orderDate').value;
+    const { start, end } = dateRangePicker.getRange();
+    if (!supplier) { setDlgStatus('Pick a supplier.', 'error'); return; }
+    if (!start) { setDlgStatus('Pick an expected delivery date.', 'error'); return; }
+    if (!draftLines.length) { setDlgStatus('Add at least one item.', 'error'); return; }
+
+    setDlgStatus('Creating PO...');
+    try {
+      const notes = form.querySelector('#po_notes').value.trim();
+      const existingPO = await sheetsGet(cfg.spreadsheetId, 'PurchaseOrders!A:A', token);
+      const poId = nextId(existingPO.length ? existingPO : [['ID']], 'PO');
+      await sheetsAppend(cfg.spreadsheetId, 'PurchaseOrders!A:G', [poId, supplier, orderDate, start, end || start, 'Ordered', notes], token);
+
+      const existingLines = await sheetsGet(cfg.spreadsheetId, 'PurchaseOrderLines!A:A', token);
+      let base = existingLines.length ? existingLines : [['ID']];
+      const lineRows = draftLines.map(l => {
+        const lineId = nextId(base, 'POL');
+        base = base.concat([[lineId]]);
+        return [lineId, poId, l.code, l.qty, l.unit, '', '', '', 'Ordered'];
+      });
+      await sheetsAppendRows(cfg.spreadsheetId, 'PurchaseOrderLines!A:I', lineRows, token);
+
+      dialogEl.close();
+      setStatus(`Purchase order ${poId} created.`, 'ok');
+      loadAll();
+    } catch (err) {
+      setDlgStatus('Error: ' + err.message, 'error');
+    }
+  }
+
+  // ---- view / copy / cancel ----
+
+  function openViewDialog(poId) {
+    const po = poRowsData.find(r => r.obj.ID === poId);
+    if (!po) return;
+    const lines = polRowsData.filter(l => l.obj['PO ID'] === poId);
+    renderViewForm(po, lines);
+    dialogEl.showModal();
+    guard.arm();
+  }
+
+  function renderViewForm(po, lines) {
+    dirtyCheck = null; // read-only — nothing here can be lost
+    const isOrdered = po.obj.STATUS === 'Ordered' || !po.obj.STATUS;
+    const itemsHtml = lines.map(l => `
+      <tr>
+        <td>${escapeHtml(productName(l.obj['PRODUCT CODE']))}</td>
+        <td class="num">${escapeHtml(l.obj['QTY ORDERED'])}</td>
+        <td>${escapeHtml(l.obj.UNIT)}</td>
+        ${!isOrdered ? `<td class="num">${escapeHtml(l.obj['QTY RECEIVED'])}</td><td>${escapeHtml(l.obj['LOT NUMBER'])}</td><td>${escapeHtml(l.obj['BEST BEFORE DATE'])}</td>` : ''}
+      </tr>
+    `).join('');
+
+    form.innerHTML = `
+      <div class="dlg-h">${escapeHtml(po.obj.ID)} — ${escapeHtml(po.obj.SUPPLIER)}</div>
+      <div class="dlg-b">
+        <div class="row" style="margin-bottom:14px;">
+          <div class="col"><label>Status</label>${statusTag(po.obj.STATUS)}</div>
+          <div class="col"><label>Order date</label>${escapeHtml(fmtDateShort(po.obj['ORDER DATE']))}</div>
+          <div class="col"><label>Expected delivery</label>${escapeHtml(fmtDateRange(po.obj['EXPECTED START DATE'], po.obj['EXPECTED END DATE']))}</div>
+        </div>
+        <table class="form">
+          <thead><tr><th>Product</th><th class="num">Ordered</th><th>Unit</th>${!isOrdered ? '<th class="num">Received</th><th>Lot</th><th>Best before</th>' : ''}</tr></thead>
+          <tbody>${itemsHtml || `<tr><td colspan="${isOrdered ? 3 : 6}" class="empty" style="padding:12px;">No items.</td></tr>`}</tbody>
+        </table>
+        ${po.obj.NOTES ? `<div class="field" style="margin-top:12px;"><label>Notes</label><div>${escapeHtml(po.obj.NOTES)}</div></div>` : ''}
+        <div id="poDlgStatus" class="mono" style="margin-top:10px; font-size:12.5px; color:var(--steel);"></div>
+      </div>
+      <div class="dlg-f">
+        <button type="button" class="btn ghost" data-cancel>Close</button>
+        <button type="button" class="btn ghost" id="poCopyBtn">Copy to clipboard</button>
+        ${isOrdered ? `<button type="button" class="btn danger" id="poCancelBtn">Cancel PO</button><button type="button" class="btn" id="poReceiveBtn">Mark as delivered</button>` : ''}
+      </div>
+    `;
+
+    form.onsubmit = (e) => e.preventDefault();
+    form.onchange = null;
+    form.onclick = (e) => {
+      if (e.target.closest('[data-cancel]')) { guard.guardedClose(); return; }
+      if (e.target.closest('#poCopyBtn')) { copyPoToClipboard(lines); return; }
+      if (e.target.closest('#poCancelBtn')) { handleCancelPo(po); return; }
+      if (e.target.closest('#poReceiveBtn')) { renderReceiveForm(po, lines); guard.arm(); }
+    };
+  }
+
+  async function copyPoToClipboard(lines) {
+    const text = lines.map(l => `${productName(l.obj['PRODUCT CODE'])} — ${l.obj['QTY ORDERED']} ${l.obj.UNIT}`).join('\n');
+    try {
+      await navigator.clipboard.writeText(text);
+      setDlgStatus('Copied to clipboard.', 'ok');
+    } catch (err) {
+      setDlgStatus('Could not copy: ' + err.message, 'error');
+    }
+  }
+
+  async function handleCancelPo(po) {
+    if (!confirm(`Cancel purchase order ${po.obj.ID}? This can't be undone.`)) return;
+    const cfg = await ensureAuth(setDlgStatus);
+    if (!cfg) return;
+    try {
+      await sheetsUpdateRange(cfg.spreadsheetId, `PurchaseOrders!F${po.rowNumber}:F${po.rowNumber}`, [['Cancelled']], token, 'USER_ENTERED');
+      dialogEl.close();
+      setStatus(`${po.obj.ID} cancelled.`, 'ok');
+      loadAll();
+    } catch (err) {
+      setDlgStatus('Error: ' + err.message, 'error');
+    }
+  }
+
+  // ---- mark as delivered ----
+
+  function renderReceiveForm(po, lines) {
+    receiveLines = lines.map(l => ({
+      lineId: l.obj.ID, rowNumber: l.rowNumber, code: l.obj['PRODUCT CODE'], name: productName(l.obj['PRODUCT CODE']),
+      unit: l.obj.UNIT || 'kg', qty: l.obj['QTY ORDERED'], lot: '', bbe: '', isNew: false
+    }));
+    const initialSnapshot = JSON.stringify(receiveLines);
+    dirtyCheck = () => JSON.stringify(receiveLines) !== initialSnapshot;
+
+    const supplierProducts = products.filter(p => p['Default supplier'] === po.obj.SUPPLIER && !receiveLines.some(l => l.code === p['Product code']));
+
+    form.innerHTML = `
+      <div class="dlg-h">Mark ${escapeHtml(po.obj.ID)} as delivered</div>
+      <div class="dlg-b">
+        <p class="sub" style="margin-bottom:12px;">Confirm what actually arrived — adjust quantities, add anything extra, or remove what didn't show up. A lot number and best-before date is needed for anything you're receiving.</p>
+        <table class="form" id="po_receiveTable">
+          <thead><tr><th>Product</th><th class="num">Qty</th><th>Unit</th><th>Lot number</th><th>Best before</th><th></th></tr></thead>
+          <tbody></tbody>
+        </table>
+        <div class="field" style="margin-top:10px;">
+          <label>Add item not on the original order</label>
+          <div class="inline">
+            <div class="field" style="flex:2; margin-bottom:0;">
+              <select id="po_recvAddProduct">
+                <option value="">${supplierProducts.length ? 'Select a product…' : 'No other products for this supplier'}</option>
+                ${supplierProducts.map(p => `<option value="${escapeHtml(p['Product code'])}">${escapeHtml(p['Product name'])}</option>`).join('')}
+              </select>
+            </div>
+            <button type="button" class="btn ghost sm" id="po_recvAddBtn">+ Add</button>
+          </div>
+        </div>
+        <div id="poDlgStatus" class="mono" style="margin-top:10px; font-size:12.5px; color:var(--steel);"></div>
+      </div>
+      <div class="dlg-f">
+        <button type="button" class="btn ghost" data-cancel>Cancel</button>
+        <button type="submit" class="btn" id="poSubmitBtn">Confirm delivery</button>
+      </div>
+    `;
+    renderReceiveRows();
+
+    form.onclick = (e) => {
+      if (e.target.closest('[data-cancel]')) { guard.guardedClose(); return; }
+      const rmBtn = e.target.closest('[data-recv-remove]');
+      if (rmBtn) {
+        const idx = parseInt(rmBtn.dataset.recvRemove, 10);
+        if (receiveLines[idx].isNew) receiveLines.splice(idx, 1);
+        else { receiveLines[idx].qty = '0'; receiveLines[idx].lot = ''; receiveLines[idx].bbe = ''; }
+        renderReceiveRows();
+        return;
+      }
+      if (e.target.closest('#po_recvAddBtn')) {
+        const sel = form.querySelector('#po_recvAddProduct');
+        const code = sel.value;
+        if (!code) { setDlgStatus('Pick a product first.', 'error'); return; }
+        receiveLines.push({ lineId: null, rowNumber: null, code, name: productName(code), unit: 'kg', qty: '', lot: '', bbe: '', isNew: true });
+        sel.value = '';
+        sel.querySelector(`option[value="${CSS.escape(code)}"]`)?.remove();
+        setDlgStatus('');
+        renderReceiveRows();
+      }
+    };
+    const syncField = (e) => {
+      const tr = e.target.closest('tr[data-idx]');
+      const f = e.target.dataset.f;
+      if (!tr || !f) return;
+      receiveLines[parseInt(tr.dataset.idx, 10)][f] = e.target.value;
+    };
+    form.oninput = syncField;
+    form.onchange = syncField;
+    form.onsubmit = (e) => handleReceiveSubmit(e, po);
+  }
+
+  function renderReceiveRows() {
+    const tbody = form.querySelector('#po_receiveTable tbody');
+    if (!receiveLines.length) {
+      tbody.innerHTML = `<tr><td colspan="6" class="empty" style="padding:12px;">Nothing left to receive.</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = receiveLines.map((l, i) => `
+      <tr data-idx="${i}">
+        <td>${escapeHtml(l.name)}${l.isNew ? ' <span class="tag t-chill">Extra</span>' : ''}</td>
+        <td class="num"><input type="number" step="any" data-f="qty" value="${escapeHtml(l.qty)}" style="width:70px;"></td>
+        <td><select data-f="unit" style="width:70px;"><option value="kg"${l.unit === 'kg' ? ' selected' : ''}>kg</option><option value="pc"${l.unit === 'pc' ? ' selected' : ''}>pc</option></select></td>
+        <td><input type="text" data-f="lot" value="${escapeHtml(l.lot)}" placeholder="e.g. H-2831" style="width:110px;"></td>
+        <td><input type="date" data-f="bbe" value="${escapeHtml(l.bbe)}"></td>
+        <td><button type="button" class="btn ghost sm" data-recv-remove="${i}">Remove</button></td>
+      </tr>
+    `).join('');
+  }
+
+  async function handleReceiveSubmit(e, po) {
+    e.preventDefault();
+    const cfg = await ensureAuth(setDlgStatus);
+    if (!cfg) return;
+
+    const toReceive = receiveLines.filter(l => parseFloat(l.qty) > 0);
+    for (const l of toReceive) {
+      if (!l.lot || !l.lot.trim()) { setDlgStatus(`Enter a lot number for ${l.name}.`, 'error'); return; }
+      if (!l.bbe) { setDlgStatus(`Enter a best-before date for ${l.name}.`, 'error'); return; }
+    }
+
+    setDlgStatus('Recording delivery...');
+    try {
+      if (toReceive.length) {
+        const existingDel = await sheetsGet(cfg.spreadsheetId, 'Deliveries!A:A', token);
+        let delBase = existingDel.length ? existingDel : [['ID']];
+        const deliveryRows = toReceive.map(l => {
+          const id = nextId(delBase, 'DEL');
+          delBase = delBase.concat([[id]]);
+          return [id, todayIso(), po.obj.SUPPLIER, l.code, l.lot.trim(), l.bbe, parseFloat(l.qty), l.unit, '', po.obj.ID];
+        });
+        await sheetsAppendRows(cfg.spreadsheetId, 'Deliveries!A:J', deliveryRows, token);
+      }
+
+      const existingLines = await sheetsGet(cfg.spreadsheetId, 'PurchaseOrderLines!A:A', token);
+      let polBase = existingLines.length ? existingLines : [['ID']];
+      const newLineRows = [];
+      for (const l of receiveLines) {
+        const delivered = parseFloat(l.qty) > 0;
+        const status = delivered ? 'Delivered' : 'Not delivered';
+        if (l.isNew) {
+          const id = nextId(polBase, 'POL');
+          polBase = polBase.concat([[id]]);
+          newLineRows.push([id, po.obj.ID, l.code, '', l.unit, delivered ? l.qty : '', delivered ? l.lot.trim() : '', delivered ? l.bbe : '', status]);
+        } else {
+          await sheetsUpdateRange(cfg.spreadsheetId, `PurchaseOrderLines!F${l.rowNumber}:I${l.rowNumber}`, [[delivered ? l.qty : '', delivered ? l.lot.trim() : '', delivered ? l.bbe : '', status]], token, 'USER_ENTERED');
+        }
+      }
+      if (newLineRows.length) await sheetsAppendRows(cfg.spreadsheetId, 'PurchaseOrderLines!A:I', newLineRows, token);
+
+      await sheetsUpdateRange(cfg.spreadsheetId, `PurchaseOrders!F${po.rowNumber}:F${po.rowNumber}`, [['Delivered']], token, 'USER_ENTERED');
+
+      dialogEl.close();
+      setStatus(`${po.obj.ID} marked as delivered.`, 'ok');
+      loadAll();
+    } catch (err) {
+      setDlgStatus('Error: ' + err.message, 'error');
+    }
+  }
+
+  // ---- wiring ----
+
+  document.getElementById('newPoBtn').addEventListener('click', () => {
+    renderCreateForm();
+    dialogEl.showModal();
+    guard.arm();
+  });
+  document.getElementById('reloadBtn').addEventListener('click', loadAll);
+
+  window.addEventListener('load', loadAll);
+</script>
+</body>
+</html>

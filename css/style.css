@@ -164,6 +164,27 @@ dialog::backdrop{background:rgba(20,24,28,.55)}
 .dlg-b{padding:16px;max-height:66vh;overflow:auto}
 .dlg-f{padding:12px 16px;border-top:1px solid var(--line);display:flex;gap:9px;justify-content:flex-end;background:#FCFCFD}
 
+/* Date-range popover picker — see js/daterange.js */
+.dr-trigger{width:100%;text-align:left;padding:7px 9px;border:1px solid var(--line);border-radius:4px;background:#fff;font-size:13px;color:var(--ink)}
+.dr-trigger:hover{background:#FAFBFC}
+.daterange{position:relative;display:inline-block;width:100%}
+.dr-pop{position:absolute;top:calc(100% + 6px);left:0;background:#fff;border:1px solid var(--line);border-radius:6px;box-shadow:0 12px 30px rgba(20,24,28,.18);padding:12px;z-index:20;width:260px}
+.dr-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.dr-hd .dr-label{font-size:13px;font-weight:600;color:var(--ink)}
+.dr-nav{width:24px;height:24px;border-radius:4px;font-size:15px;line-height:1;color:var(--steel)}
+.dr-nav:hover{background:#F0F2F4;color:var(--ink)}
+.dr-dow{display:grid;grid-template-columns:repeat(7,1fr);text-align:center;font-size:10px;color:var(--mist);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px}
+.dr-days{display:grid;grid-template-columns:repeat(7,1fr);gap:2px}
+.dr-day{aspect-ratio:1;border-radius:4px;font-size:12.5px;font-family:'Roboto Mono',monospace;color:var(--ink);display:flex;align-items:center;justify-content:center}
+.dr-day:not(.dr-pad):hover{background:#F0F2F4}
+.dr-day.dr-today{font-weight:700;color:var(--chill)}
+.dr-day.dr-in{background:var(--chill-bg);border-radius:0}
+.dr-day.dr-sel{background:var(--chill);color:#fff;font-weight:600}
+.dr-ft{display:flex;justify-content:space-between;margin-top:10px;padding-top:10px;border-top:1px solid var(--line)}
+.dr-ft button{font-size:12px;color:var(--steel);padding:4px 8px;border-radius:4px}
+.dr-ft button:hover{background:#F0F2F4;color:var(--ink)}
+.dr-ft .dr-done{color:var(--chill);font-weight:600}
+
 /* In-dialog "discard unsaved changes?" prompt — see js/dialog-guard.js */
 .discard-panel{display:none;position:absolute;inset:0;background:rgba(20,24,28,.55);align-items:center;justify-content:center;padding:20px;z-index:5}
 .discard-panel.open{display:flex}

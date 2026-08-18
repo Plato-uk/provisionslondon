@@ -7,22 +7,32 @@ models, sheet schemas, or conventions between the two.
 - **Repo:** `Plato-uk/provisionslondon` on GitHub. Branch `main` only.
 - **Architecture:** static site, no server/build step. Every page talks
   directly to a single Google Sheet via the Sheets API v4, authenticated
-  client-side with Google OAuth (`js/config.js`, `js/sheets.js`). Current
-  OAuth scope is `spreadsheets` only — no Drive scope yet, so there's no
-  file-upload/storage capability wired up today.
-- Generic CRUD table framework in `js/crud-page.js` — every list page
-  (Products, Suppliers, Customers, Deliveries, Orders, OrderLines,
-  Allocations) configures one `initCrudTable()` call instead of hand-rolling
+  client-side with Google OAuth (`js/config.js`, `js/sheets.js`). OAuth scope
+  is `spreadsheets` plus `drive.file` (restricted — the app only ever sees
+  files it creates itself) for the Products photo upload feature
+  (`js/drive.js`).
+- Generic CRUD table framework in `js/crud-page.js` — every flat list page
+  (Products, Suppliers, Customers, Orders, OrderLines, Allocations)
+  configures one `initCrudTable()` call instead of hand-rolling
   fetch/append/update/delete logic. Read the comment block at the top of
-  that file before adding a new page or field type.
+  that file before adding a new page or field type. Purchase Orders is
+  bespoke, hand-rolled JS (`purchase-orders.html`) — its line-item/date-range
+  UX doesn't fit the generic single-flat-table model.
 
 ## Sheet schema (see `setup.html`'s `REQUIRED_TABS` for the source of truth)
 - **Products** — item master, one row per SKU keyed by `Product code`
   (natural key, not an auto-id). Mirrors the Xero-linked schema: cost/landed
   cost, cut-to-order fields, Xero item/account codes.
 - **Suppliers**, **Customers** — reference lists.
+- **PurchaseOrders** / **PurchaseOrderLines** — an order placed with one
+  supplier (lines restricted to that supplier's products), with an expected
+  delivery date range. Status: Ordered → Delivered/Cancelled — delivery is
+  one-time, not partial. "Mark as delivered" (in `purchase-orders.html`) is
+  the only normal path onto the Deliveries tab: it appends the resulting
+  rows there and fills in each line's received qty/lot/best-before.
 - **Deliveries** — goods-in, linked to Products by `PRODUCT CODE` and
-  tracked by batch/lot number + best-before date.
+  tracked by batch/lot number + best-before date. `PO ID` traces a row back
+  to the purchase order it was received against, when there is one.
 - **Orders** / **OrderLines** / **Allocations** — order header, order lines,
   and stock allocated to each line (FEFO-aware — see Allocations page logic).
 
@@ -39,7 +49,7 @@ setup.html            Auto-creates required tabs + headers — run first on a ne
 products.html           Item master
 suppliers.html            Supplier list
 customers.html              Customer list
-deliveries.html                Goods-in log
+purchase-orders.html           Place/receive supplier orders
 stock.html                       Stock view
 orders.html                        Orders + lines
 lists.html                           Pick/pack lists

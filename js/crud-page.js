@@ -1,5 +1,5 @@
-// Generic "add + edit + remove" table bound to one Sheets tab. Every list
-// page (Products, Suppliers, Customers, Deliveries, Orders, OrderLines,
+// Generic "add + edit + remove" table bound to one Sheets tab. Every flat
+// list page (Products, Suppliers, Customers, Orders, OrderLines,
 // Allocations) configures one of these instead of hand-rolling its
 // own fetch/append/update/delete logic, so behaviour — including how a row
 // gets deleted or overwritten (via its real sheet row index), how the

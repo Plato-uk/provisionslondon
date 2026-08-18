@@ -20,7 +20,7 @@
     <a href="products.html" title="Products"><span class="rail-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7.5l9-4 9 4-9 4-9-4z"/><path d="M3 7.5v9l9 4 9-4v-9"/><path d="M12 11.5v9"/></svg></span><span class="rail-label">Products</span></a>
     <a href="suppliers.html" title="Suppliers"><span class="rail-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="12" height="9" rx="1"/><path d="M14 10h4l3 3v3h-7z"/><circle cx="7" cy="18" r="1.8"/><circle cx="17.5" cy="18" r="1.8"/></svg></span><span class="rail-label">Suppliers</span></a>
     <a href="customers.html" title="Customers"><span class="rail-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20c0-3.6 2.9-6.2 6.5-6.2s6.5 2.6 6.5 6.2"/><circle cx="17.5" cy="9" r="2.3"/><path d="M15.8 13.5c2.6.5 4.2 2.4 4.2 5"/></svg></span><span class="rail-label">Customers</span></a>
-    <a href="deliveries.html" title="Deliveries"><span class="rail-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v10"/><path d="M8 9l4 4 4-4"/><path d="M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"/></svg></span><span class="rail-label">Deliveries</span></a>
+    <a href="purchase-orders.html" title="Purchase Orders"><span class="rail-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v10"/><path d="M8 9l4 4 4-4"/><path d="M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"/></svg></span><span class="rail-label">Purchase orders</span></a>
     <a href="stock.html" title="Stock"><span class="rail-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10"/><path d="M12 20V4"/><path d="M20 20v-7"/></svg></span><span class="rail-label">Stock</span></a>
     <a href="orders.html" title="Orders"><span class="rail-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 3.5h6a1 1 0 0 1 1 1V6H8V4.5a1 1 0 0 1 1-1z"/><path d="M8.5 11h7M8.5 14.5h7M8.5 18h4"/></svg></span><span class="rail-label">Orders</span></a>
     <a href="lists.html" title="Lists"><span class="rail-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5h9M9 12h9M9 19h9"/><path d="M4.5 5l1 1 2-2M4.5 12l1 1 2-2M4.5 19l1 1 2-2"/></svg></span><span class="rail-label">Lists</span></a>
@@ -50,6 +50,13 @@
     </div>
   </div>
 
+  <div class="panel" id="upcomingCard" style="display:none;">
+    <div class="panel-h" style="border:none; background:none; padding:0 0 8px;">
+      <h3 style="text-transform:none; letter-spacing:normal; font-size:15px; color:var(--ink); font-weight:600;">Upcoming deliveries</h3>
+    </div>
+    <div id="upcomingList"></div>
+  </div>
+
   <h2 style="margin-top:28px;">Tools</h2>
   <div class="grid">
     <a class="card" href="setup.html">
@@ -68,9 +75,9 @@
       <div class="nm">Customers</div>
       <div class="meta" style="font-family:Archivo,system-ui,sans-serif; font-size:12.5px; color:var(--steel); text-transform:none; letter-spacing:normal;">Who orders go to, and their price tier.</div>
     </a>
-    <a class="card" href="deliveries.html">
-      <div class="nm">Deliveries</div>
-      <div class="meta" style="font-family:Archivo,system-ui,sans-serif; font-size:12.5px; color:var(--steel); text-transform:none; letter-spacing:normal;">Log goods-in: supplier, batch/lot number, best-before date, quantity.</div>
+    <a class="card" href="purchase-orders.html">
+      <div class="nm">Purchase Orders</div>
+      <div class="meta" style="font-family:Archivo,system-ui,sans-serif; font-size:12.5px; color:var(--steel); text-transform:none; letter-spacing:normal;">Place orders with suppliers and receive them into stock with a lot number and best-before date.</div>
     </a>
     <a class="card" href="stock.html">
       <div class="nm">Stock</div>
@@ -94,6 +101,8 @@
 </main>
 
 <script src="js/config.js?v=1"></script>
+<script src="js/sheets.js?v=1"></script>
+<script src="js/util.js?v=1"></script>
 <script>
   const status = document.getElementById('status');
   const signInBtn = document.getElementById('signInBtn');
@@ -111,11 +120,70 @@
     }
   }
 
+  // Turns a sheet's [header, ...rows] into plain objects keyed by header text.
+  function toObjects(rows) {
+    if (!rows.length) return [];
+    const [head, ...rest] = rows;
+    return rest.map(r => { const o = {}; head.forEach((h, i) => { o[h] = r[i] ?? ''; }); return o; });
+  }
+
+  function fmtDateShort(iso) {
+    if (!iso) return '';
+    const d = new Date(iso + 'T00:00:00');
+    if (isNaN(d)) return iso;
+    return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  }
+
+  function fmtDateRange(s, e) {
+    if (!s) return 'No date set';
+    if (!e || e === s) return fmtDateShort(s);
+    return `${fmtDateShort(s)} – ${fmtDateShort(e)}`;
+  }
+
+  // Purchase orders still awaiting delivery, soonest expected first — a
+  // quick "what's arriving and roughly when" glance without leaving the
+  // Dashboard. See purchase-orders.html for the full workflow.
+  async function loadUpcoming() {
+    const cfg = getStoredConfig();
+    const token = tryResumeSession();
+    const card = document.getElementById('upcomingCard');
+    if (!token || !cfg.spreadsheetId) { card.style.display = 'none'; return; }
+    card.style.display = 'block';
+    const list = document.getElementById('upcomingList');
+    try {
+      const [poRows, polRows] = await Promise.all([
+        sheetsGet(cfg.spreadsheetId, 'PurchaseOrders!A:Z', token),
+        sheetsGet(cfg.spreadsheetId, 'PurchaseOrderLines!A:Z', token)
+      ]);
+      const pos = toObjects(poRows).filter(o => o.STATUS === 'Ordered' || !o.STATUS);
+      pos.sort((a, b) => (a['EXPECTED START DATE'] || '9999').localeCompare(b['EXPECTED START DATE'] || '9999'));
+      const countByPoId = {};
+      toObjects(polRows).forEach(l => { countByPoId[l['PO ID']] = (countByPoId[l['PO ID']] || 0) + 1; });
+
+      if (!pos.length) {
+        list.innerHTML = `<div class="empty" style="padding:14px;">Nothing on order right now.</div>`;
+        return;
+      }
+      list.innerHTML = pos.map(po => `
+        <div class="bk-line">
+          <div class="t"><strong>${escapeHtml(po.SUPPLIER)}</strong><span class="muted">${escapeHtml(po.ID)}</span></div>
+          <div style="display:flex; justify-content:space-between; margin-top:2px; color:var(--steel); font-size:12px;">
+            <span>${escapeHtml(fmtDateRange(po['EXPECTED START DATE'], po['EXPECTED END DATE']))}</span>
+            <span>${countByPoId[po.ID] || 0} item(s)</span>
+          </div>
+        </div>
+      `).join('') + `<div style="margin-top:10px;"><a href="purchase-orders.html" style="font-size:12.5px; color:var(--chill);">View all purchase orders →</a></div>`;
+    } catch (err) {
+      list.innerHTML = `<div class="note" style="margin:0;">Error loading purchase orders: ${escapeHtml(err.message)}</div>`;
+    }
+  }
+
   window.addEventListener('load', () => {
     const cfg = getStoredConfig();
     document.getElementById('clientId').value = cfg.clientId;
     document.getElementById('spreadsheetId').value = cfg.spreadsheetId;
     refreshSignedInUI();
+    loadUpcoming();
   });
 
   document.getElementById('saveConfigBtn').addEventListener('click', () => {
@@ -131,7 +199,7 @@
     if (!clientId) { setStatus('Paste your OAuth Client ID first.', 'error'); return; }
     tokenClient = initGoogleAuth({
       clientId,
-      onToken: () => setStatus('Signed in — session active.', 'ok'),
+      onToken: () => { setStatus('Signed in — session active.', 'ok'); loadUpcoming(); },
       onError: (err) => setStatus('Sign-in error: ' + err, 'error')
     });
     tokenClient.requestAccessToken();
