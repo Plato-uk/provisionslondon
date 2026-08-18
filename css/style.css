@@ -56,6 +56,11 @@ td.num,th.num{text-align:right;font-family:'Roboto Mono',monospace;font-variant-
 .scroll{max-height:520px;overflow:auto}
 th.sortable{cursor:pointer;user-select:none}
 th.sortable:hover{color:var(--ink)}
+td.cell-detail{cursor:pointer}
+td.cell-detail:hover{background:var(--chill-bg)}
+td.cell-editable{cursor:pointer}
+td.cell-editable:hover{background:#F0F2F4}
+td.cell-editable input,td.cell-editable select{padding:4px 6px}
 
 /* Search + column-visibility toolbar above a table */
 .filter-bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:10px 0}

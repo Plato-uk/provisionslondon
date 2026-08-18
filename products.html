@@ -89,7 +89,7 @@
       autoId: null,
       fields: [
         { key: 'Product code', label: 'Product code', type: 'text', required: true, placeholder: 'e.g. CCS050' },
-        { key: 'Product name', label: 'Product name', type: 'text', required: true, placeholder: 'e.g. Brie Dongé 3kg' },
+        { key: 'Product name', label: 'Product name', type: 'text', required: true, placeholder: 'e.g. Brie Dongé 3kg', primary: true },
         { key: 'Category', label: 'Category', type: 'select', options: ['Biscuits','Charcuterie','Cheese','Condiment','Deli & Snacks','Jam','Non-Food','Oil','Pasta','Preserved Veg','Pâté & Terrine','Ready Meals','Tinned Fish','Vinegar'] },
         { key: 'Default supplier', label: 'Default supplier', type: 'ref', refTab: 'Suppliers', refValue: 'Supplier name' },
         { key: 'Producer', label: 'Producer', type: 'text' },
@@ -113,7 +113,8 @@
         { key: 'Sellable', label: 'Sellable', type: 'checkbox', trueValue: 'Yes', falseValue: 'No' },
         { key: 'Notes', label: 'Notes', type: 'textarea' },
         { key: 'Photo URL', label: 'Photo', type: 'image', placeholder: 'https://... — usually set via Bulk upload photos' }
-      ]
+      ],
+      inlineEdit: true
     });
 
     initBulkPhotosUpload();

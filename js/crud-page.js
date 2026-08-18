@@ -22,7 +22,7 @@
 //                            // shown but locked once editing an existing
 //                            // row, since other tabs may reference it.
 //   fields: [                // one entry per header, in header order
-//     { key:'NAME', label:'Name', type:'text', required:true },
+//     { key:'NAME', label:'Name', type:'text', required:true, primary:true }, // primary: this cell (and any 'image' cell) opens the detail dialog
 //     { key:'TIER', label:'Tier', type:'text', placeholder:'e.g. Standard' },
 //     { key:'ACTIVE', label:'Active', type:'checkbox' },        // stores TRUE/FALSE
 //     { key:'ACTIVE', label:'Active', type:'checkbox', trueValue:'Yes', falseValue:'No' }, // stores Yes/No instead
@@ -32,6 +32,10 @@
 //     { key:'PHOTO', label:'Photo', type:'image' },             // plain URL input; renders as a table thumbnail
 //   ],
 //   sample: [ [...row values in header order, 'auto' for the id col...], ... ]
+//   inlineEdit: true,         // opt-in: click a cell to edit it in place instead
+//                              // of opening the dialog (see below) — off by
+//                              // default so other tables keep today's
+//                              // click-Edit-button behaviour unchanged.
 // }
 //
 // fields[i] corresponds to headers[i+1] when autoId is set (headers[0] is
@@ -47,9 +51,27 @@
 // column regardless of visibility, and a Columns picker to hide/show
 // individual columns — the hidden-column set persists per table via
 // localStorage.
+//
+// When `inlineEdit` is on:
+//   - Any 'image' field is always rendered as the leading column(s), ahead
+//     of the sheet's real header order, so a product's photo reads first —
+//     this is purely a display reorder; the underlying headers/fields
+//     arrays (and therefore the sheet's append-only column order) never
+//     change.
+//   - Clicking a cell for an editable field type (text/number/select/
+//     checkbox/date/ref) turns just that cell into an input; Enter or blur
+//     saves it with a single-cell Sheets write, Escape reverts it.
+//     'textarea' and 'image' cells aren't inline-editable — edit those from
+//     the detail dialog instead.
+//   - Clicking an 'image' cell, a field flagged `primary:true`, or (when
+//     `autoId` is null) the natural-key column always opens the same
+//     add/edit dialog as a "detail card" for the full row — titled with
+//     that record's primary value instead of the generic "Edit X" when one
+//     is set. A "Details" button in the row's action column does the same,
+//     as a guaranteed fallback if no cell in a given row happens to do so.
 
 async function initCrudTable(config) {
-  const { mount, title, tab, headers, autoId, fields, sample } = config;
+  const { mount, title, tab, headers, autoId, fields, sample, inlineEdit } = config;
   const root = document.querySelector(mount);
   const range = `${tab}!A:${colLetter(headers.length)}`;
   const endCol = colLetter(headers.length);
@@ -64,6 +86,7 @@ async function initCrudTable(config) {
   const hiddenColsKey = `${tab}_hiddenCols`;
   let hiddenCols = new Set(JSON.parse(localStorage.getItem(hiddenColsKey) || '[]'));
   const refCache = {};
+  let inlineEditing = null; // { rowNumber, colIdx, field, original } while a single cell is mid-edit, else null
 
   root.innerHTML = `
     <div class="panel-h" style="border:none; background:none; padding:0 0 8px;">
@@ -150,6 +173,30 @@ async function initCrudTable(config) {
   function fieldForHeaderIndex(idx) {
     const fieldIdx = autoId ? idx - 1 : idx;
     return fields[fieldIdx];
+  }
+
+  // Column render order: image field(s) first, then everything else in its
+  // real header order. Display-only — sorting/hiding/search still key off
+  // the real header index carried in each cell's data-col-idx, so this
+  // never touches the sheet's actual (append-only) column order.
+  const displayOrder = (() => {
+    const idxs = headers.map((_, i) => i);
+    const imageIdxs = idxs.filter(i => { const f = fieldForHeaderIndex(i); return f && f.type === 'image'; });
+    const restIdxs = idxs.filter(i => !imageIdxs.includes(i));
+    return [...imageIdxs, ...restIdxs];
+  })();
+
+  function isInlineEditable(field) {
+    return !!field && ['text', 'number', 'select', 'checkbox', 'date', 'ref'].includes(field.type);
+  }
+
+  // Whether clicking this column's cell should open the detail dialog
+  // instead of (or as well as, for non-editable types) inline-editing.
+  function opensDetail(field, idx) {
+    if (!inlineEdit || !field) return false;
+    if (field.type === 'image' || field.primary) return true;
+    if (!autoId && idx === 0) return true; // the natural key — locked in the dialog too
+    return false;
   }
 
   function fieldInputHtml(f) {
@@ -256,9 +303,112 @@ async function initCrudTable(config) {
     }
     if (field && field.type === 'image') {
       const url = (value || '').toString().trim();
-      return url ? `<img src="${escapeHtml(url)}" alt="" loading="lazy" style="width:32px;height:32px;object-fit:cover;border-radius:4px;vertical-align:middle;">` : '';
+      const box = 'width:38px;height:38px;border-radius:8px;vertical-align:middle;background:#EEF0F2;';
+      return url
+        ? `<img src="${escapeHtml(url)}" alt="" loading="lazy" style="${box}object-fit:cover;display:block;">`
+        : `<span style="${box}display:inline-block;"></span>`;
     }
     return escapeHtml(value);
+  }
+
+  // ---- inline cell editing (opt-in via config.inlineEdit) ----
+
+  function inlineInputHtml(field, value) {
+    const v = (value ?? '').toString();
+    if (field.type === 'checkbox') {
+      const checked = v.toUpperCase() === (field.trueValue || 'TRUE').toUpperCase();
+      return `<input type="checkbox" ${checked ? 'checked' : ''}>`;
+    }
+    if (field.type === 'number') return `<input type="number" step="any" value="${escapeHtml(v)}">`;
+    if (field.type === 'date') return `<input type="date" value="${escapeHtml(v)}">`;
+    if (field.type === 'select') return `<select><option value="">—</option>${field.options.map(o => {
+      const opt = typeof o === 'object' ? o : { value: o, label: o };
+      return `<option value="${escapeHtml(opt.value)}" ${opt.value === v ? 'selected' : ''}>${escapeHtml(opt.label)}</option>`;
+    }).join('')}</select>`;
+    if (field.type === 'ref') return `<select><option value="${escapeHtml(v)}">${escapeHtml(v || 'Loading…')}</option></select>`;
+    return `<input value="${escapeHtml(v)}">`;
+  }
+
+  async function populateInlineRefOptions(field, selectEl) {
+    const cfg = getStoredConfig();
+    if (!cfg.spreadsheetId) return;
+    try {
+      delete refCache[field.refTab]; // always fetch fresh, same as the dialog does
+      const opts = await loadRefOptions(field, cfg);
+      const current = selectEl.value;
+      selectEl.innerHTML = `<option value="">—</option>` + opts.map(o => `<option value="${escapeHtml(o.value)}" ${o.value === current ? 'selected' : ''}>${escapeHtml(o.label)}</option>`).join('');
+    } catch (err) {
+      // leave the current-value placeholder option in place
+    }
+  }
+
+  // Turns one <td> into a live input, saving on blur/Enter (or immediately
+  // on change, for select/ref/checkbox) with a single-cell Sheets write —
+  // no full-row resubmission and no dialog. Escape reverts without saving.
+  function beginInlineEdit(td, rowNumber, colIdx, field) {
+    if (inlineEditing) return; // one cell at a time; the other one commits on its own blur
+    const row = rowsData[rowNumber - 2];
+    if (!row) return;
+    const original = row.values[colIdx] ?? '';
+    inlineEditing = { rowNumber, colIdx, field, original };
+    td.innerHTML = inlineInputHtml(field, original);
+    const input = td.querySelector('input, select');
+    input.focus();
+    if (input.select) input.select();
+    if (field.type === 'ref') populateInlineRefOptions(field, input);
+
+    const revert = () => { td.innerHTML = displayCell(field, original); };
+
+    const commit = async () => {
+      if (!inlineEditing) return; // already committed/cancelled via another event
+      inlineEditing = null;
+      const value = field.type === 'checkbox'
+        ? (input.checked ? (field.trueValue || 'TRUE') : (field.falseValue || 'FALSE'))
+        : input.value.trim();
+
+      if (field.required && !value) { setStatus(`${field.label} is required.`, 'error'); revert(); return; }
+      if (field.type !== 'checkbox' && value === (original ?? '').toString().trim()) { revert(); return; }
+
+      const cfg = await ensureAuth();
+      if (!cfg) { revert(); return; }
+      const col = colLetter(colIdx + 1);
+      try {
+        await sheetsUpdateRange(cfg.spreadsheetId, `${tab}!${col}${rowNumber}:${col}${rowNumber}`, [[value]], token, 'USER_ENTERED');
+        row.values[colIdx] = value;
+        td.innerHTML = displayCell(field, value);
+        setStatus('Saved.', 'ok');
+      } catch (err) {
+        setStatus('Error saving: ' + err.message, 'error');
+        revert();
+      }
+    };
+    const cancel = () => { inlineEditing = null; revert(); };
+
+    input.addEventListener('blur', commit);
+    if (field.type === 'select' || field.type === 'ref' || field.type === 'checkbox') {
+      input.addEventListener('change', commit);
+    }
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+      else if (e.key === 'Escape') { e.preventDefault(); cancel(); }
+    });
+  }
+
+  // Best available title for a record's detail dialog: its `primary`
+  // field's value, falling back to the natural key (when there is one),
+  // falling back to the generic "Edit X" set by the caller.
+  function recordTitle(rowValues) {
+    const offset = autoId ? 1 : 0;
+    const primaryField = fields.find(f => f.primary);
+    if (primaryField) {
+      const v = (rowValues[fields.indexOf(primaryField) + offset] || '').toString().trim();
+      if (v) return v;
+    }
+    if (!autoId) {
+      const v = (rowValues[0] || '').toString().trim();
+      if (v) return v;
+    }
+    return null;
   }
 
   async function loadRows() {
@@ -303,7 +453,8 @@ async function initCrudTable(config) {
     const thead = tableEl.querySelector('thead tr');
     const tbody = tableEl.querySelector('tbody');
 
-    thead.innerHTML = headers.map((h, idx) => {
+    thead.innerHTML = displayOrder.map(idx => {
+      const h = headers[idx];
       if (hiddenCols.has(h)) return '';
       const numCls = isNumericField(fieldForHeaderIndex(idx)) ? ' num' : '';
       const arrow = sortColIdx === idx ? (sortDir === 1 ? ' ▲' : ' ▼') : '';
@@ -318,13 +469,20 @@ async function initCrudTable(config) {
     }
 
     tbody.innerHTML = viewRows.map(d => {
-      const cells = headers.map((h, idx) => {
+      const cells = displayOrder.map(idx => {
+        const h = headers[idx];
         if (hiddenCols.has(h)) return '';
         const field = fieldForHeaderIndex(idx);
-        const numCls = isNumericField(field) ? ' class="num"' : '';
-        return `<td${numCls}>${displayCell(field, d.values[idx])}</td>`;
+        const classes = [];
+        if (isNumericField(field)) classes.push('num');
+        let titleAttr = '';
+        if (opensDetail(field, idx)) { classes.push('cell-detail'); titleAttr = ' title="Click to view details"'; }
+        else if (inlineEdit && isInlineEditable(field)) { classes.push('cell-editable'); titleAttr = ' title="Click to edit"'; }
+        const classAttr = classes.length ? ` class="${classes.join(' ')}"` : '';
+        return `<td${classAttr}${titleAttr} data-col-idx="${idx}">${displayCell(field, d.values[idx])}</td>`;
       }).join('');
-      return `<tr data-row="${d.rowNumber}">${cells}<td style="white-space:nowrap;"><button type="button" class="btn ghost sm" data-edit="${d.rowNumber}">Edit</button> <button type="button" class="btn danger sm" data-del="${d.rowNumber}">Remove</button></td></tr>`;
+      const editLabel = inlineEdit ? 'Details' : 'Edit';
+      return `<tr data-row="${d.rowNumber}">${cells}<td style="white-space:nowrap;"><button type="button" class="btn ghost sm" data-edit="${d.rowNumber}">${editLabel}</button> <button type="button" class="btn danger sm" data-del="${d.rowNumber}">Remove</button></td></tr>`;
     }).join('');
   }
 
@@ -356,7 +514,16 @@ async function initCrudTable(config) {
     const delBtn = e.target.closest('button[data-del]');
     if (delBtn) { handleDelete(parseInt(delBtn.dataset.del, 10)); return; }
     const editBtn = e.target.closest('button[data-edit]');
-    if (editBtn) handleEdit(parseInt(editBtn.dataset.edit, 10));
+    if (editBtn) { handleEdit(parseInt(editBtn.dataset.edit, 10)); return; }
+
+    if (!inlineEdit) return;
+    const td = e.target.closest('td[data-col-idx]');
+    if (!td || inlineEditing) return; // ignore stray clicks while a cell is already mid-edit
+    const idx = parseInt(td.dataset.colIdx, 10);
+    const rowNumber = parseInt(td.closest('tr').dataset.row, 10);
+    const field = fieldForHeaderIndex(idx);
+    if (opensDetail(field, idx)) { handleEdit(rowNumber); return; }
+    if (isInlineEditable(field)) beginInlineEdit(td, rowNumber, idx, field);
   });
 
   searchInput.addEventListener('input', () => {
@@ -401,7 +568,7 @@ async function initCrudTable(config) {
     if (!row) return;
     const rowValues = row.values;
     editing = { rowNumber, id: rowValues[0] };
-    root.querySelector(`#${tab}_dlgTitle`).textContent = `Edit ${singular}`;
+    root.querySelector(`#${tab}_dlgTitle`).textContent = recordTitle(rowValues) || `Edit ${singular}`;
     root.querySelector(`#${tab}_submitBtn`).textContent = 'Save changes';
     setDlgStatus('');
     resetFieldValues();
