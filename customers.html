@@ -30,7 +30,7 @@
 
 <main>
   <h2>Customers</h2>
-  <p class="sub">Who orders go to. Price tier picks which of a product's three prices (P2P/P2B/PCS) applies to this customer's orders. Delivery fields are placeholders for a later route-suggestion feature.</p>
+  <p class="sub">Who orders go to. Price tier picks which of a product's three prices (P2P/P2B/P2S) applies to this customer's orders. Delivery fields are placeholders for a later route-suggestion feature.</p>
 
   <div id="signedOutNotice" class="note" style="display:none;">
     Not signed in — go to the <a href="index.html" style="color:inherit; text-decoration:underline;">Dashboard</a> to sign in. Your session will carry over here.
@@ -67,14 +67,14 @@
         { key: 'PRICE TIER', label: 'Price tier', type: 'select', options: [
           { value: 'P2P', label: 'P2P — Provisions to Provisions' },
           { value: 'P2B', label: 'P2B — Provisions to Business' },
-          { value: 'PCS', label: 'PCS — Provisions to Selfridges' }
+          { value: 'P2S', label: 'P2S — Provisions to Selfridges' }
         ] },
         { key: 'CONTACT', label: 'Contact', type: 'text' },
         { key: 'DELIVERY ADDRESS', label: 'Delivery address', type: 'textarea' },
         { key: 'DELIVERY NOTES', label: 'Delivery notes', type: 'textarea' }
       ],
       sample: [
-        ['', 'Selfridges Food Hall', 'PCS', 'goodsin@selfridges.example', '400 Oxford St, London W1A 1AB', 'Deliveries before 10am only'],
+        ['', 'Selfridges Food Hall', 'P2S', 'goodsin@selfridges.example', '400 Oxford St, London W1A 1AB', 'Deliveries before 10am only'],
         ['', 'The Wine Society', 'P2B', 'orders@winesociety.example', 'Gunnels Wood Rd, Stevenage SG1 2BG', ''],
         ['', 'Borough Market Stall 12', 'P2P', 'stall12@example.com', '8 Southwark St, London SE1 1TL', 'Collection preferred over delivery']
       ]

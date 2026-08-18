@@ -30,7 +30,7 @@
 
 <main>
   <h2>Products</h2>
-  <p class="sub">The item master — one row per SKU, keyed by your own product code. Each product carries up to three fixed prices — P2P, P2B, and PCS — any of which can be left blank. A customer's <a href="customers.html">Price tier</a> picks which one applies to their orders.</p>
+  <p class="sub">The item master — one row per SKU, keyed by your own product code. Each product carries up to three fixed prices — P2P, P2B, and P2S — any of which can be left blank. A customer's <a href="customers.html">Price tier</a> picks which one applies to their orders.</p>
 
   <div id="signedOutNotice" class="note" style="display:none;">
     Not signed in — go to the <a href="index.html" style="color:inherit; text-decoration:underline;">Dashboard</a> to sign in. Your session will carry over here.
@@ -60,7 +60,7 @@
       mount: '#productsMount',
       title: 'Products',
       tab: 'Products',
-      headers: ['CODE','NAME','CATEGORY','SUPPLIER','PRODUCER','CHILLED','UNIT TYPE','NOMINAL WEIGHT','COST','LANDED COST','CUT FROM','CUT LIFE DAYS','PACK LIFE DAYS','ACTIVE','NOTES','P2P PRICE','P2B PRICE','PCS PRICE'],
+      headers: ['CODE','NAME','CATEGORY','SUPPLIER','PRODUCER','CHILLED','UNIT TYPE','NOMINAL WEIGHT','COST','LANDED COST','CUT FROM','CUT LIFE DAYS','PACK LIFE DAYS','ACTIVE','NOTES','P2P PRICE','P2B PRICE','P2S PRICE'],
       autoId: null,
       fields: [
         { key: 'CODE', label: 'Code', type: 'text', required: true, placeholder: 'e.g. CCS050' },
@@ -80,7 +80,7 @@
         { key: 'NOTES', label: 'Notes', type: 'textarea' },
         { key: 'P2P PRICE', label: 'P2P price (£)', type: 'number', placeholder: 'Provisions to Provisions' },
         { key: 'P2B PRICE', label: 'P2B price (£)', type: 'number', placeholder: 'Provisions to Business' },
-        { key: 'PCS PRICE', label: 'PCS price (£)', type: 'number', placeholder: 'Provisions to Selfridges' }
+        { key: 'P2S PRICE', label: 'P2S price (£)', type: 'number', placeholder: 'Provisions to Selfridges' }
       ],
       sample: [
         ['CCS050', 'Brie Dongé 3kg', 'Cheese', 'AMF/Odéon', 'Dongé', 'TRUE', 'Per kg', 3, 12.7359, 17.1935, '', '', '', 'TRUE', '', 17.19, 21.00, 25.00],
