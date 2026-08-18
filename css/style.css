@@ -14,18 +14,27 @@ button{font:inherit;cursor:pointer;border:none;background:none;color:inherit}
 input,select{font:inherit;color:inherit}
 :focus-visible{outline:2px solid var(--chill);outline-offset:2px}
 
-/* ---- chrome */
-header{background:var(--ink);color:#fff;padding:10px 18px;display:flex;align-items:center;gap:18px;flex-wrap:wrap;position:sticky;top:0;z-index:20}
-.brand{font-weight:700;letter-spacing:-.02em;font-size:15px;color:#fff;text-decoration:none}
-.brand span{color:var(--mist);font-weight:400}
-.prototype{font-family:'Roboto Mono',monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;background:#3A4249;padding:3px 8px;border-radius:3px;color:#C3CBD3}
-.clock{margin-left:auto;font-family:'Roboto Mono',monospace;font-size:12px;color:var(--mist);display:flex;gap:14px;align-items:center}
-nav{background:var(--slate);display:flex;gap:0;overflow-x:auto;position:sticky;top:44px;z-index:19}
-nav button,nav a{color:#AEB7C0;padding:11px 16px;font-size:13px;font-weight:500;white-space:nowrap;border-bottom:3px solid transparent;text-decoration:none;display:inline-block}
-nav button:hover,nav a:hover{color:#fff;background:#363D44}
-nav button[aria-current=true],nav a[aria-current=page]{color:#fff;border-bottom-color:var(--chill);background:#232930}
-nav .count{font-family:'Roboto Mono',monospace;font-size:11px;color:var(--mist);margin-left:6px}
-main{padding:18px;max-width:1400px;margin:0 auto}
+/* ---- chrome: left icon rail, ink palette */
+.app-sidebar{position:fixed;top:0;left:0;bottom:0;width:72px;background:var(--ink);display:flex;flex-direction:column;align-items:center;gap:4px;padding:16px 0 20px;overflow-y:auto;z-index:20}
+.app-sidebar .brand{display:grid;place-items:center;width:36px;height:36px;margin-bottom:14px;border-radius:8px;background:var(--chill);color:#fff;font-family:Archivo,system-ui,sans-serif;font-weight:700;font-size:16px;letter-spacing:-.02em;text-decoration:none;flex-shrink:0}
+.app-nav{display:flex;flex-direction:column;align-items:center;gap:2px;width:100%}
+.app-nav a{display:flex;flex-direction:column;align-items:center;gap:3px;width:58px;padding:8px 2px;border-radius:6px;text-decoration:none;color:var(--mist);transition:background .12s ease,color .12s ease}
+.app-nav a:hover{background:#232930;color:#fff}
+.app-nav a[aria-current=page]{background:var(--chill);color:#fff}
+.app-nav a[aria-current=page] .rail-icon{background:#fff;color:var(--chill)}
+.rail-icon{display:grid;place-items:center;width:30px;height:30px;border-radius:5px;background:#232930;color:inherit}
+.rail-icon svg{width:17px;height:17px}
+.rail-label{font-family:'Roboto Mono',monospace;font-size:8.5px;font-weight:500;letter-spacing:.03em;text-transform:uppercase;text-align:center;line-height:1.2}
+main{padding:18px 22px;max-width:1400px;margin:0 auto 0 72px}
+@media (max-width:640px){
+  .app-sidebar{width:56px}
+  .app-sidebar .brand{width:28px;height:28px;font-size:13px}
+  .app-nav a{width:48px;padding:6px 2px}
+  .rail-icon{width:24px;height:24px}
+  .rail-icon svg{width:14px;height:14px}
+  .rail-label{font-size:7.5px}
+  main{margin-left:56px!important;padding:14px 12px}
+}
 
 /* ---- structure */
 h2{font-size:19px;font-weight:600;letter-spacing:-.01em;margin-bottom:2px}
