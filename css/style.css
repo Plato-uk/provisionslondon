@@ -193,6 +193,23 @@ dialog::backdrop{background:rgba(20,24,28,.55)}
 .dr-ft button:hover{background:#F0F2F4;color:var(--ink)}
 .dr-ft .dr-done{color:var(--chill);font-weight:600}
 
+/* Searchable <select> enhancement — see js/searchable-select.js */
+.cbx{position:relative}
+.cbx-trigger{width:100%;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 9px;border:1px solid var(--line);border-radius:4px;background:#fff;font-size:14px;text-align:left;color:var(--ink)}
+.cbx-trigger svg{color:var(--steel);flex-shrink:0}
+.cbx-trigger .cbx-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cbx-trigger.cbx-placeholder .cbx-label{color:var(--mist)}
+.cbx-trigger.cbx-open{border-color:var(--chill)}
+.cbx-trigger.cbx-disabled{background:#F0F2F4;color:var(--steel);cursor:not-allowed}
+.cbx-pop{position:absolute;top:calc(100% + 4px);left:0;right:0;background:#fff;border:1px solid var(--line);border-radius:6px;box-shadow:0 12px 30px rgba(20,24,28,.18);z-index:20;overflow:hidden}
+.cbx-search{width:100%;border:none;border-bottom:1px solid var(--line);border-radius:0;padding:9px 11px;font-size:13.5px}
+.cbx-search:focus{outline:none}
+.cbx-list{max-height:220px;overflow-y:auto;padding:4px}
+.cbx-opt{display:block;width:100%;text-align:left;padding:7px 10px;border-radius:4px;font-size:13.5px;color:var(--ink)}
+.cbx-opt:hover,.cbx-opt.cbx-active{background:var(--chill-bg);color:var(--chill)}
+.cbx-opt.cbx-selected{font-weight:600}
+.cbx-empty{padding:12px 10px;font-size:13px;color:var(--steel);text-align:center}
+
 /* In-dialog "discard unsaved changes?" prompt — see js/dialog-guard.js */
 .discard-panel{display:none;position:absolute;inset:0;background:rgba(20,24,28,.55);align-items:center;justify-content:center;padding:20px;z-index:5}
 .discard-panel.open{display:flex}

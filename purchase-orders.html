@@ -61,6 +61,7 @@
 <script src="js/util.js?v=1"></script>
 <script src="js/dialog-guard.js?v=1"></script>
 <script src="js/daterange.js?v=1"></script>
+<script src="js/searchable-select.js?v=1"></script>
 <script>
   let token = null;
   let suppliers = [];
@@ -267,6 +268,8 @@
 
     const supplierSel = form.querySelector('#po_supplier');
     const addProductSel = form.querySelector('#po_addProduct');
+    enhanceSelect(supplierSel);
+    enhanceSelect(addProductSel); // its options get rewritten per supplier — the enhancement resyncs on its own
 
     dirtyCheck = () => !!supplierSel.value || draftLines.length > 0
       || !!form.querySelector('#po_notes').value.trim()
@@ -494,6 +497,7 @@
       </div>
     `;
     renderReceiveRows();
+    enhanceSelect(form.querySelector('#po_recvAddProduct'));
 
     form.onclick = (e) => {
       if (e.target.closest('[data-cancel]')) { guard.guardedClose(); return; }

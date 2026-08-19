@@ -55,6 +55,7 @@
 <script src="js/sheets.js?v=1"></script>
 <script src="js/util.js?v=1"></script>
 <script src="js/dialog-guard.js?v=1"></script>
+<script src="js/searchable-select.js?v=1"></script>
 <script src="js/crud-page.js?v=7"></script>
 <script>
   function requireAuth() {
@@ -159,6 +160,7 @@
       const lineId = orderLineSel.value;
       if (!lineId) {
         productSel.value = '';
+        productSel.dispatchEvent(new Event('change'));
         batchSel.innerHTML = '<option value="">Pick an order line first</option>';
         return;
       }
@@ -177,6 +179,7 @@
 
         const productCode = line['PRODUCT CODE'];
         productSel.value = productCode;
+        productSel.dispatchEvent(new Event('change')); // resyncs the searchable-select trigger label — see js/searchable-select.js
 
         const allocs = toObjs(allocRows);
         const alreadyOnLine = allocs

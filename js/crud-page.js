@@ -54,6 +54,11 @@
 // individual columns — the hidden-column set persists per table via
 // localStorage.
 //
+// Every 'ref' field, plus any 'select' field with more than 3 options, gets
+// a searchable trigger instead of a plain <select> (js/searchable-select.js)
+// — automatic, no config needed. Same treatment applies to the inline-edit
+// cell editor below.
+//
 // When `inlineEdit` is on:
 //   - Any 'image' field is always rendered as the leading column(s), ahead
 //     of the sheet's real header order, so a product's photo reads first —
@@ -363,11 +368,12 @@ async function initCrudTable(config) {
     inlineEditing = { rowNumber, colIdx, field, original };
     td.innerHTML = inlineInputHtml(field, original);
     const input = td.querySelector('input, select');
-    input.focus();
-    if (input.select) input.select();
+    const cbx = (field.type === 'ref' || (field.type === 'select' && field.options.length > 3)) ? enhanceSelect(input) : null;
+    if (cbx) cbx.trigger.focus();
+    else { input.focus(); if (input.select) input.select(); }
     if (field.type === 'ref') populateInlineRefOptions(field, input);
 
-    const revert = () => { td.innerHTML = displayCell(field, original); };
+    const revert = () => { if (cbx) cbx.destroy(); td.innerHTML = displayCell(field, original); };
 
     const commit = async () => {
       if (!inlineEditing) return; // already committed/cancelled via another event
@@ -385,6 +391,7 @@ async function initCrudTable(config) {
       try {
         await sheetsUpdateRange(cfg.spreadsheetId, `${tab}!${col}${rowNumber}:${col}${rowNumber}`, [[value]], token, 'USER_ENTERED');
         row.values[colIdx] = value;
+        if (cbx) cbx.destroy();
         td.innerHTML = displayCell(field, value);
         setStatus('Saved.', 'ok');
       } catch (err) {
@@ -402,6 +409,14 @@ async function initCrudTable(config) {
       if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
       else if (e.key === 'Escape') { e.preventDefault(); cancel(); }
     });
+    if (cbx) {
+      // The hidden native <select> never receives focus/blur/keydown once
+      // enhanced — the trigger button does instead. A pick already commits
+      // via the 'change' listener above; this just covers leaving the
+      // widget without picking anything (click away, or Escape).
+      cbx.wrap.addEventListener('focusout', (e) => { if (!cbx.wrap.contains(e.relatedTarget)) commit(); });
+      cbx.trigger.addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.preventDefault(); cancel(); } });
+    }
   }
 
   // Best available title for a record's detail dialog: its `primary`
@@ -560,6 +575,18 @@ async function initCrudTable(config) {
   });
 
   renderForm();
+  // Any field backed by a big list gets a searchable trigger instead of a
+  // plain <select> — every ref field (dynamic, so its eventual size isn't
+  // known upfront) plus any static 'select' with more than a handful of
+  // options. Built once, since the underlying <select> element persists for
+  // the life of the dialog — ref-option reloads just rewrite its <option>s
+  // in place (see js/searchable-select.js's MutationObserver).
+  fields.forEach(f => {
+    if (f.type === 'ref' || (f.type === 'select' && f.options.length > 3)) {
+      const el = form.querySelector(`#${fid(f)}`);
+      if (el) enhanceSelect(el);
+    }
+  });
   const guard = attachDiscardGuard(dialogEl, { scope: form });
 
   async function openAddDialog() {
