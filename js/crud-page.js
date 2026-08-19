@@ -14,6 +14,8 @@
 // config = {
 //   mount: '#el',            // container to render the panel into
 //   title: 'Suppliers',
+//   subtitle: 'Who deliveries come from.', // optional one-liner shown under
+//                              // the dialog's title, e.g. "Add Supplier"
 //   tab: 'Suppliers',        // sheet tab name
 //   headers: [...],          // must match Setup's REQUIRED_TABS for this tab
 //   autoId: 'SUP' | null,    // prefix for a generated ID in column A, or null
@@ -71,7 +73,7 @@
 //     as a guaranteed fallback if no cell in a given row happens to do so.
 
 async function initCrudTable(config) {
-  const { mount, title, tab, headers, autoId, fields, sample, inlineEdit } = config;
+  const { mount, title, tab, headers, autoId, fields, sample, inlineEdit, subtitle } = config;
   const root = document.querySelector(mount);
   const range = `${tab}!A:${colLetter(headers.length)}`;
   const endCol = colLetter(headers.length);
@@ -219,7 +221,15 @@ async function initCrudTable(config) {
   // in later, on each dialog open, so they're never stale.
   function renderForm() {
     form.innerHTML = `
-      <div class="dlg-h" id="${tab}_dlgTitle">Add ${escapeHtml(singular)}</div>
+      <div class="dlg-h">
+        <div>
+          <div class="ttl" id="${tab}_dlgTitle">Add ${escapeHtml(singular)}</div>
+          ${subtitle ? `<div class="subtitle">${escapeHtml(subtitle)}</div>` : ''}
+        </div>
+        <button type="button" class="dlg-close" data-cancel aria-label="Close">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+      </div>
       <div class="dlg-b">
         <div class="row">
           ${fields.map(f => `<div class="col field"><label>${escapeHtml(f.label)}${f.required ? ' *' : ''}</label>${fieldInputHtml(f)}</div>`).join('')}
@@ -582,7 +592,9 @@ async function initCrudTable(config) {
   }
 
   root.querySelector(`#${tab}_addBtn`).addEventListener('click', openAddDialog);
-  form.querySelector('[data-cancel]').addEventListener('click', () => guard.guardedClose());
+  // Both the header's close button and the footer's Cancel button carry
+  // data-cancel — wire every match, not just the first.
+  form.querySelectorAll('[data-cancel]').forEach(el => el.addEventListener('click', () => guard.guardedClose()));
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();

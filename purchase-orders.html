@@ -205,7 +205,15 @@
   function renderCreateForm() {
     draftLines = [];
     form.innerHTML = `
-      <div class="dlg-h">New Purchase Order</div>
+      <div class="dlg-h">
+        <div>
+          <div class="ttl">New Purchase Order</div>
+          <div class="subtitle">Order from one supplier — pick your items and an expected delivery window.</div>
+        </div>
+        <button type="button" class="dlg-close" data-cancel aria-label="Close">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+      </div>
       <div class="dlg-b">
         <div class="row">
           <div class="col field">
@@ -380,13 +388,16 @@
     `).join('');
 
     form.innerHTML = `
-      <div class="dlg-h">${escapeHtml(po.obj.ID)} — ${escapeHtml(po.obj.SUPPLIER)}</div>
-      <div class="dlg-b">
-        <div class="row" style="margin-bottom:14px;">
-          <div class="col"><label>Status</label>${statusTag(po.obj.STATUS)}</div>
-          <div class="col"><label>Order date</label>${escapeHtml(fmtDateShort(po.obj['ORDER DATE']))}</div>
-          <div class="col"><label>Expected delivery</label>${escapeHtml(fmtDateRange(po.obj['EXPECTED START DATE'], po.obj['EXPECTED END DATE']))}</div>
+      <div class="dlg-h">
+        <div>
+          <div class="ttl">${escapeHtml(po.obj.ID)} — ${escapeHtml(po.obj.SUPPLIER)} ${statusTag(po.obj.STATUS)}</div>
+          <div class="subtitle">Placed ${escapeHtml(fmtDateShort(po.obj['ORDER DATE']))} · expected ${escapeHtml(fmtDateRange(po.obj['EXPECTED START DATE'], po.obj['EXPECTED END DATE']))}.</div>
         </div>
+        <button type="button" class="dlg-close" data-cancel aria-label="Close">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+      </div>
+      <div class="dlg-b">
         <table class="form">
           <thead><tr><th>Product</th><th class="num">Ordered</th><th>Unit</th>${!isOrdered ? '<th class="num">Received</th><th>Lot</th><th>Best before</th>' : ''}</tr></thead>
           <tbody>${itemsHtml || `<tr><td colspan="${isOrdered ? 3 : 6}" class="empty" style="padding:12px;">No items.</td></tr>`}</tbody>
@@ -448,9 +459,17 @@
     const supplierProducts = products.filter(p => p['Default supplier'] === po.obj.SUPPLIER && !receiveLines.some(l => l.code === p['Product code']));
 
     form.innerHTML = `
-      <div class="dlg-h">Mark ${escapeHtml(po.obj.ID)} as delivered</div>
+      <div class="dlg-h">
+        <div>
+          <div class="ttl">Mark ${escapeHtml(po.obj.ID)} as delivered</div>
+          <div class="subtitle">Confirm what actually arrived — adjust quantities, add extra items, or remove what didn't show up.</div>
+        </div>
+        <button type="button" class="dlg-close" data-cancel aria-label="Close">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+      </div>
       <div class="dlg-b">
-        <p class="sub" style="margin-bottom:12px;">Confirm what actually arrived — adjust quantities, add anything extra, or remove what didn't show up. A lot number and best-before date is needed for anything you're receiving.</p>
+        <p class="sub" style="margin-bottom:12px;">A lot number and best-before date is required for anything you're receiving.</p>
         <table class="form" id="po_receiveTable">
           <thead><tr><th>Product</th><th class="num">Qty</th><th>Unit</th><th>Lot number</th><th>Best before</th><th></th></tr></thead>
           <tbody></tbody>

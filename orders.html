@@ -71,6 +71,7 @@
     await initCrudTable({
       mount: '#ordersMount',
       title: 'Orders',
+      subtitle: 'The order header — date, customer, delivery date, and status.',
       tab: 'Orders',
       headers: ['ID', 'DATE', 'CUSTOMER', 'DELIVERY DATE', 'STATUS', 'NOTES'],
       autoId: 'ORD',
@@ -90,6 +91,7 @@
     await initCrudTable({
       mount: '#orderLinesMount',
       title: 'OrderLines',
+      subtitle: 'One row per product on an order.',
       tab: 'OrderLines',
       headers: ['ID', 'ORDER ID', 'PRODUCT CODE', 'QTY ORDERED', 'UNIT', 'STATUS', 'NOTES'],
       autoId: 'OL',
@@ -111,6 +113,7 @@
     await initCrudTable({
       mount: '#allocationsMount',
       title: 'Allocations',
+      subtitle: 'Assigns a delivered batch/lot to an order line — the stock-out event.',
       tab: 'Allocations',
       headers: ['ID', 'ORDER LINE ID', 'PRODUCT CODE', 'BATCH/LOT NUMBER', 'QTY ALLOCATED', 'ALLOCATED DATE'],
       autoId: 'ALO',

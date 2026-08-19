@@ -158,11 +158,19 @@ table.form select{padding:4px 6px;font-size:12px;max-width:210px}
 .bar i{display:block;height:100%;background:var(--chill)}
 pre.csv{background:var(--ink);color:#D6DCE2;padding:12px;border-radius:5px;font-family:'Roboto Mono',monospace;font-size:11px;overflow:auto;max-height:280px;line-height:1.6}
 .toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 18px;border-radius:5px;font-size:13px;z-index:60;box-shadow:0 6px 20px rgba(0,0,0,.25)}
-dialog{border:none;border-radius:7px;padding:0;max-width:620px;width:94%;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+/* Every <dialog> on the site shares this shape. The *{margin:0} reset above
+   cancels dialog:modal's default margin:auto centering, which is why an
+   unstyled dialog opens pinned to the top-left instead of centered — the
+   `margin:auto` below is the fix, not decoration. */
+dialog{border:none;border-radius:12px;padding:0;max-width:740px;width:94%;box-shadow:0 24px 70px rgba(0,0,0,.35);margin:auto}
 dialog::backdrop{background:rgba(20,24,28,.55)}
-.dlg-h{padding:13px 16px;border-bottom:1px solid var(--line);font-weight:600;display:flex;align-items:center}
-.dlg-b{padding:16px;max-height:66vh;overflow:auto}
-.dlg-f{padding:12px 16px;border-top:1px solid var(--line);display:flex;gap:9px;justify-content:flex-end;background:#FCFCFD}
+.dlg-h{padding:19px 23px;border-bottom:1px solid var(--line);display:flex;align-items:flex-start;justify-content:space-between;gap:16px}
+.dlg-h .ttl{font-size:17px;font-weight:700;letter-spacing:-.01em;color:var(--ink)}
+.dlg-h .subtitle{font-size:12.5px;color:var(--steel);font-weight:400;margin-top:4px}
+.dlg-close{width:30px;height:30px;border-radius:6px;display:grid;place-items:center;color:var(--steel);flex-shrink:0}
+.dlg-close:hover{background:#F0F2F4;color:var(--ink)}
+.dlg-b{padding:22px;max-height:64vh;overflow:auto}
+.dlg-f{padding:15px 23px;border-top:1px solid var(--line);display:flex;gap:9px;justify-content:flex-end;background:#FCFCFD}
 
 /* Date-range popover picker — see js/daterange.js */
 .dr-trigger{width:100%;text-align:left;padding:7px 9px;border:1px solid var(--line);border-radius:4px;background:#fff;font-size:13px;color:var(--ink)}
