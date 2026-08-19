@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Provisions — Stock Take</title>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=Roboto+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css?v=7">
+<link rel="icon" type="image/png" href="img/favicon.png">
+</head>
+<body>
+
+<div class="app-sidebar no-print">
+  <a class="brand" href="index.html" title="Provisions UK"><img src="img/logo.png" alt="Provisions"></a>
+  <nav class="app-nav">
+    <a href="index.html" title="Dashboard"><span class="rail-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></span><span class="rail-label">Dashboard</span></a>
+    <a href="products.html" title="Products"><span class="rail-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7.5l9-4 9 4-9 4-9-4z"/><path d="M3 7.5v9l9 4 9-4v-9"/><path d="M12 11.5v9"/></svg></span><span class="rail-label">Products</span></a>
+    <a href="suppliers.html" title="Suppliers"><span class="rail-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="12" height="9" rx="1"/><path d="M14 10h4l3 3v3h-7z"/><circle cx="7" cy="18" r="1.8"/><circle cx="17.5" cy="18" r="1.8"/></svg></span><span class="rail-label">Suppliers</span></a>
+    <a href="customers.html" title="Customers"><span class="rail-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20c0-3.6 2.9-6.2 6.5-6.2s6.5 2.6 6.5 6.2"/><circle cx="17.5" cy="9" r="2.3"/><path d="M15.8 13.5c2.6.5 4.2 2.4 4.2 5"/></svg></span><span class="rail-label">Customers</span></a>
+    <a href="purchase-orders.html" title="Purchase Orders"><span class="rail-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v10"/><path d="M8 9l4 4 4-4"/><path d="M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"/></svg></span><span class="rail-label">Purchase orders</span></a>
+    <a href="stock.html" title="Stock"><span class="rail-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10"/><path d="M12 20V4"/><path d="M20 20v-7"/></svg></span><span class="rail-label">Stock</span></a>
+    <a href="stock-take.html" aria-current="page" title="Stock Take"><span class="rail-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 3.5h6a1 1 0 0 1 1 1V6H8V4.5a1 1 0 0 1 1-1z"/><path d="M8.5 12.5l2 2 4-4.5"/></svg></span><span class="rail-label">Stock Take</span></a>
+    <a href="orders.html" title="Orders"><span class="rail-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 3.5h6a1 1 0 0 1 1 1V6H8V4.5a1 1 0 0 1 1-1z"/><path d="M8.5 11h7M8.5 14.5h7M8.5 18h4"/></svg></span><span class="rail-label">Orders</span></a>
+    <a href="lists.html" title="Lists"><span class="rail-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5h9M9 12h9M9 19h9"/><path d="M4.5 5l1 1 2-2M4.5 12l1 1 2-2M4.5 19l1 1 2-2"/></svg></span><span class="rail-label">Lists</span></a>
+    <a href="setup.html" title="Setup"><span class="rail-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2.2"/><circle cx="7" cy="17" r="2.2"/></svg></span><span class="rail-label">Setup</span></a>
+  </nav>
+</div>
+
+<main>
+  <div class="no-print">
+    <h2>Stock Take</h2>
+    <p class="sub">Physically count what's on the shelf against what the system thinks you have. Products priced per kg are weighed; everything else is counted in whole units.</p>
+  </div>
+
+  <div id="signedOutNotice" class="note no-print" style="display:none;">
+    Not signed in — go to the <a href="index.html" style="color:inherit; text-decoration:underline;">Dashboard</a> to sign in. Your session will carry over here.
+  </div>
+
+  <div id="status" class="mono no-print" style="margin-bottom:12px; font-size:12.5px; color:var(--steel);"></div>
+
+  <!-- No stock take in progress: start one, or glance at past ones -->
+  <div id="startCard" class="no-print" style="display:none;">
+    <div class="panel">
+      <div class="panel-b">
+        <button type="button" class="btn" id="startBtn">+ Start new stock take</button>
+        <span class="mono" style="font-size:12px; color:var(--steel); margin-left:10px;">Snapshots every active product's system quantity, then walks you through counting each one.</span>
+      </div>
+    </div>
+    <div id="historyWrap"></div>
+  </div>
+
+  <!-- A stock take is in progress -->
+  <div id="activeCard" style="display:none;">
+    <div class="no-print">
+      <div class="panel-h" style="border:none; background:none; padding:0 0 8px;">
+        <h3 id="stHeading" style="text-transform:none; letter-spacing:normal; font-size:15px; color:var(--ink); font-weight:600;"></h3>
+        <button type="button" class="btn add-btn sm" id="rapidBtn" style="margin:0;">Next uncounted item</button>
+        <button type="button" class="btn ghost sm" id="printBtn" style="margin:0;">Print</button>
+        <button type="button" class="btn ghost sm" id="reloadBtn" style="margin:0;">Reload</button>
+        <button type="button" class="btn danger sm" id="completeBtn" style="margin:0; margin-left:auto;">Complete stock take</button>
+      </div>
+      <div class="row" id="progressStats" style="margin-bottom:10px;"></div>
+      <div class="bar" style="margin-bottom:16px;" id="progressBarWrap"><i id="progressBar" style="width:0%;"></i></div>
+      <div class="filter-bar">
+        <input type="search" id="searchInput" placeholder="Search products...">
+      </div>
+    </div>
+    <h2 class="print-only" id="printHeading" style="margin-bottom:10px;"></h2>
+    <div class="panel"><div class="scroll" style="overflow-x:auto;">
+      <table id="stTable">
+        <thead><tr>
+          <th></th><th>Product</th><th>Category</th><th class="num">System qty</th><th class="num">Counted qty</th><th class="num">Variance</th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+    </div></div>
+  </div>
+</main>
+
+<dialog id="rapidDialog" style="max-width:440px;">
+  <div class="dlg-h">
+    <div>
+      <div class="ttl" id="rapidTitle">—</div>
+      <div class="subtitle" id="rapidSubtitle">—</div>
+    </div>
+    <button type="button" class="dlg-close" id="rapidCloseBtn" aria-label="Close">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+    </button>
+  </div>
+  <div class="dlg-b" style="text-align:center;">
+    <img id="rapidPhoto" alt="" style="width:180px; height:180px; object-fit:cover; border-radius:12px; background:#EEF0F2; margin:0 auto 16px; display:block;">
+    <div class="mono" style="color:var(--steel); font-size:12.5px; margin-bottom:14px;">System shows <strong id="rapidSystemQty">—</strong></div>
+    <input type="number" step="any" id="rapidInput" class="mono" style="font-size:26px; text-align:center; padding:12px;">
+    <div style="margin-top:6px; color:var(--steel); font-size:12.5px;" id="rapidUnitLabel"></div>
+    <div id="rapidDlgStatus" class="mono" style="margin-top:10px; font-size:12.5px; color:var(--steel);"></div>
+    <div id="rapidProgress" class="mono" style="margin-top:14px; font-size:12px; color:var(--mist);"></div>
+  </div>
+  <div class="dlg-f">
+    <button type="button" class="btn ghost" id="rapidSkipBtn">Skip</button>
+    <button type="button" class="btn" id="rapidConfirmBtn">Confirm &amp; next</button>
+  </div>
+</dialog>
+
+<script src="js/config.js?v=1"></script>
+<script src="js/sheets.js?v=1"></script>
+<script src="js/util.js?v=1"></script>
+<script>
+  let token = null;
+  let stockTake = null;   // { rowNumber, obj } from StockTakes, or null if none in progress
+  let lines = [];         // [{ rowNumber, obj }] from StockTakeLines for the active stock take
+  let products = [];
+  let productByCode = {};
+  let searchTerm = '';
+  let editingLine = null; // rowNumber currently mid-inline-edit, or null
+  let rapidQueue = [];
+  let rapidIdx = 0;
+
+  const statusEl = document.getElementById('status');
+  const rapidDialog = document.getElementById('rapidDialog');
+
+  function setStatus(msg, kind) {
+    statusEl.textContent = msg;
+    statusEl.style.color = kind === 'error' ? 'var(--crit)' : kind === 'ok' ? 'var(--ok)' : 'var(--steel)';
+  }
+
+  function setRapidStatus(msg, kind) {
+    const el = document.getElementById('rapidDlgStatus');
+    el.textContent = msg;
+    el.style.color = kind === 'error' ? 'var(--crit)' : kind === 'ok' ? 'var(--ok)' : 'var(--steel)';
+  }
+
+  function requireAuth() {
+    const cfg = getStoredConfig();
+    token = tryResumeSession();
+    const ok = !!(token && cfg.spreadsheetId);
+    document.getElementById('signedOutNotice').style.display = ok ? 'none' : 'block';
+    return ok;
+  }
+
+  async function ensureAuth(statusFn) {
+    const cfg = getStoredConfig();
+    token = tryResumeSession();
+    if (!token || !cfg.spreadsheetId) { (statusFn || setStatus)('Sign in on the Dashboard first.', 'error'); return null; }
+    return cfg;
+  }
+
+  function toObjects(rows) {
+    if (!rows.length) return [];
+    const [head, ...rest] = rows;
+    return rest.map(r => { const o = {}; head.forEach((h, i) => { o[h] = r[i] ?? ''; }); return o; });
+  }
+
+  function toRowObjects(rows) {
+    if (!rows.length) return [];
+    const [head, ...rest] = rows;
+    return rest.map((r, i) => {
+      const o = {};
+      head.forEach((h, idx) => { o[h] = r[idx] ?? ''; });
+      return { rowNumber: i + 2, obj: o };
+    });
+  }
+
+  function todayIso() { return new Date().toISOString().slice(0, 10); }
+
+  function fmtDateShort(iso) {
+    if (!iso) return '';
+    const d = new Date(iso + 'T00:00:00');
+    if (isNaN(d)) return iso;
+    return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  }
+
+  function isCounted(lineObj) {
+    return (lineObj['COUNTED QTY'] ?? '').toString().trim() !== '';
+  }
+
+  // ---- load ----
+
+  async function loadAll() {
+    if (!requireAuth()) return;
+    const cfg = getStoredConfig();
+    setStatus('Loading...');
+    try {
+      const [stRows, productRows] = await Promise.all([
+        sheetsGet(cfg.spreadsheetId, 'StockTakes!A:Z', token),
+        sheetsGet(cfg.spreadsheetId, 'Products!A:Z', token)
+      ]);
+      const stockTakes = toRowObjects(stRows);
+      products = toObjects(productRows);
+      productByCode = {};
+      products.forEach(p => { productByCode[p['Product code']] = p; });
+
+      const active = stockTakes.find(r => r.obj.STATUS === 'In Progress');
+      if (active) {
+        stockTake = active;
+        const lineRows = await sheetsGet(cfg.spreadsheetId, 'StockTakeLines!A:Z', token);
+        lines = toRowObjects(lineRows).filter(l => l.obj['STOCK TAKE ID'] === active.obj.ID);
+        document.getElementById('startCard').style.display = 'none';
+        document.getElementById('activeCard').style.display = 'block';
+        renderActive();
+        setStatus(`Loaded ${lines.length} product(s).`, 'ok');
+      } else {
+        stockTake = null;
+        document.getElementById('activeCard').style.display = 'none';
+        document.getElementById('startCard').style.display = 'block';
+        renderHistory(stockTakes.filter(r => r.obj.STATUS !== 'In Progress'));
+        setStatus('');
+      }
+    } catch (err) {
+      setStatus('Error loading: ' + err.message, 'error');
+    }
+  }
+
+  function renderHistory(past) {
+    const wrap = document.getElementById('historyWrap');
+    if (!past.length) { wrap.innerHTML = ''; return; }
+    const sorted = [...past].sort((a, b) => (b.obj['DATE STARTED'] || '').localeCompare(a.obj['DATE STARTED'] || ''));
+    wrap.innerHTML = `
+      <div class="panel-h" style="border:none; background:none; padding:16px 0 8px;"><h3 style="text-transform:none; letter-spacing:normal; font-size:15px; color:var(--ink); font-weight:600;">Past stock takes</h3></div>
+      <div class="panel"><div class="scroll" style="overflow-x:auto;">
+        <table><thead><tr><th>ID</th><th>Date started</th><th>Status</th><th>Notes</th></tr></thead>
+        <tbody>${sorted.map(r => `<tr><td class="code">${escapeHtml(r.obj.ID)}</td><td>${escapeHtml(fmtDateShort(r.obj['DATE STARTED']))}</td><td><span class="tag t-ok">${escapeHtml(r.obj.STATUS)}</span></td><td class="muted">${escapeHtml(r.obj.NOTES)}</td></tr>`).join('')}</tbody></table>
+      </div></div>
+    `;
+  }
+
+  // ---- start a new stock take ----
+
+  async function startStockTake() {
+    const cfg = await ensureAuth();
+    if (!cfg) return;
+    if (!confirm('Start a new stock take? This snapshots current system quantities for every active product.')) return;
+    setStatus('Computing current stock levels...');
+    try {
+      const [deliveryRows, allocationRows] = await Promise.all([
+        sheetsGet(cfg.spreadsheetId, 'Deliveries!A:Z', token),
+        sheetsGet(cfg.spreadsheetId, 'Allocations!A:Z', token)
+      ]);
+      const onHand = {};
+      toObjects(deliveryRows).forEach(d => {
+        onHand[d['PRODUCT CODE']] = (onHand[d['PRODUCT CODE']] || 0) + (parseFloat(d['QTY RECEIVED']) || 0);
+      });
+      toObjects(allocationRows).forEach(a => {
+        onHand[a['PRODUCT CODE']] = (onHand[a['PRODUCT CODE']] || 0) - (parseFloat(a['QTY ALLOCATED']) || 0);
+      });
+
+      const activeProducts = products.filter(p => (p.Active || '').toUpperCase() === 'YES');
+      if (!activeProducts.length) { setStatus('No active products to count — check Products first.', 'error'); return; }
+
+      const existingST = await sheetsGet(cfg.spreadsheetId, 'StockTakes!A:A', token);
+      const stId = nextId(existingST.length ? existingST : [['ID']], 'ST');
+      await sheetsAppend(cfg.spreadsheetId, 'StockTakes!A:D', [stId, todayIso(), 'In Progress', ''], token);
+
+      const existingSTL = await sheetsGet(cfg.spreadsheetId, 'StockTakeLines!A:A', token);
+      let base = existingSTL.length ? existingSTL : [['ID']];
+      const lineRows = activeProducts.map(p => {
+        const id = nextId(base, 'STL');
+        base = base.concat([[id]]);
+        const unit = p['Pricing basis'] === 'Per kg' ? 'kg' : 'pc';
+        const qty = onHand[p['Product code']] || 0;
+        return [id, stId, p['Product code'], qty.toFixed(2), '', unit, ''];
+      });
+      await sheetsAppendRows(cfg.spreadsheetId, 'StockTakeLines!A:G', lineRows, token);
+
+      setStatus(`Stock take ${stId} started — ${lineRows.length} product(s) to count.`, 'ok');
+      loadAll();
+    } catch (err) {
+      setStatus('Error starting stock take: ' + err.message, 'error');
+    }
+  }
+
+  async function completeStockTake() {
+    if (!confirm(`Mark ${stockTake.obj.ID} as complete? You can still review it under Past stock takes afterwards.`)) return;
+    const cfg = await ensureAuth();
+    if (!cfg) return;
+    try {
+      await sheetsUpdateRange(cfg.spreadsheetId, `StockTakes!C${stockTake.rowNumber}:C${stockTake.rowNumber}`, [['Completed']], token, 'USER_ENTERED');
+      setStatus(`${stockTake.obj.ID} marked complete.`, 'ok');
+      loadAll();
+    } catch (err) {
+      setStatus('Error: ' + err.message, 'error');
+    }
+  }
+
+  // ---- active stock take: table + progress ----
+
+  function renderActive() {
+    const counted = lines.filter(l => isCounted(l.obj)).length;
+    const total = lines.length;
+    document.getElementById('stHeading').textContent = `Stock take ${stockTake.obj.ID} — started ${fmtDateShort(stockTake.obj['DATE STARTED'])}`;
+    document.getElementById('printHeading').textContent = `Stock take ${stockTake.obj.ID} — ${fmtDateShort(stockTake.obj['DATE STARTED'])}`;
+    document.getElementById('progressStats').innerHTML = `
+      <div class="stat"><div class="n">${counted} / ${total}</div><div class="l">Counted</div></div>
+      <div class="stat"><div class="n">${total - counted}</div><div class="l">Remaining</div></div>
+    `;
+    document.getElementById('progressBar').style.width = `${total ? Math.round(counted / total * 100) : 0}%`;
+    renderTable();
+  }
+
+  function viewRows() {
+    const term = searchTerm.toLowerCase();
+    return lines
+      .map(l => ({ ...l, prod: productByCode[l.obj['PRODUCT CODE']] || {} }))
+      .filter(l => !term
+        || l.obj['PRODUCT CODE'].toLowerCase().includes(term)
+        || (l.prod['Product name'] || '').toLowerCase().includes(term)
+        || (l.prod['Category'] || '').toLowerCase().includes(term))
+      .sort((a, b) => (a.prod['Category'] || '').localeCompare(b.prod['Category'] || '') || (a.prod['Product name'] || '').localeCompare(b.prod['Product name'] || ''));
+  }
+
+  function countedCellHtml(l) {
+    if (isCounted(l.obj)) return `${parseFloat(l.obj['COUNTED QTY']).toFixed(2)} ${escapeHtml(l.obj.UNIT)}`;
+    return `<span class="muted no-print">—</span><span class="print-only blank-line"></span>`;
+  }
+
+  function renderTable() {
+    const tbody = document.querySelector('#stTable tbody');
+    const view = viewRows();
+    if (!view.length) {
+      tbody.innerHTML = `<tr><td colspan="6" class="empty" style="padding:18px;">No matching products.</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = view.map(l => {
+      const photo = l.prod['Photo URL'];
+      const box = 'width:52px;height:52px;border-radius:8px;vertical-align:middle;background:#EEF0F2;';
+      const photoHtml = photo
+        ? `<img src="${escapeHtml(photo)}" alt="" loading="lazy" style="${box}object-fit:cover;display:block;">`
+        : `<span style="${box}display:inline-block;"></span>`;
+      const counted = isCounted(l.obj);
+      const variance = counted ? (parseFloat(l.obj['COUNTED QTY']) - (parseFloat(l.obj['SYSTEM QTY']) || 0)) : null;
+      const varClass = variance === null ? '' : variance < -0.0001 ? 'neg' : '';
+      return `<tr data-line="${l.rowNumber}">
+        <td>${photoHtml}</td>
+        <td><strong>${escapeHtml(l.obj['PRODUCT CODE'])}</strong><br><span class="muted" style="font-size:12px;">${escapeHtml(l.prod['Product name'] || '')}</span></td>
+        <td>${escapeHtml(l.prod['Category'] || '')}</td>
+        <td class="num">${(parseFloat(l.obj['SYSTEM QTY']) || 0).toFixed(2)} ${escapeHtml(l.obj.UNIT)}</td>
+        <td class="num cell-editable" data-col="counted" title="Click to edit">${countedCellHtml(l)}</td>
+        <td class="num ${varClass}">${variance === null ? '' : (variance > 0 ? '+' : '') + variance.toFixed(2)}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  document.querySelector('#stTable').addEventListener('click', (e) => {
+    const td = e.target.closest('td[data-col="counted"]');
+    if (!td || editingLine) return;
+    const rowNumber = parseInt(td.closest('tr').dataset.line, 10);
+    beginEditCount(td, rowNumber);
+  });
+
+  function beginEditCount(td, rowNumber) {
+    const line = lines.find(l => l.rowNumber === rowNumber);
+    if (!line) return;
+    editingLine = rowNumber;
+    const isWeight = line.obj.UNIT === 'kg';
+    const current = line.obj['COUNTED QTY'] || '';
+    td.innerHTML = `<input type="number" step="${isWeight ? 'any' : '1'}" value="${escapeHtml(current)}" style="width:90px; text-align:right;">`;
+    const input = td.querySelector('input');
+    input.focus();
+    input.select();
+
+    const commit = async () => {
+      if (editingLine !== rowNumber) return;
+      editingLine = null;
+      const value = input.value.trim();
+      if (value === (current || '').toString().trim()) { renderTable(); return; }
+      const cfg = await ensureAuth();
+      if (!cfg) { renderTable(); return; }
+      try {
+        await sheetsUpdateRange(cfg.spreadsheetId, `StockTakeLines!E${rowNumber}:G${rowNumber}`, [[value, line.obj.UNIT, value === '' ? '' : todayIso()]], token, 'USER_ENTERED');
+        line.obj['COUNTED QTY'] = value;
+        line.obj['COUNTED AT'] = value === '' ? '' : todayIso();
+        setStatus('Saved.', 'ok');
+        renderActive();
+      } catch (err) {
+        setStatus('Error saving: ' + err.message, 'error');
+        renderTable();
+      }
+    };
+    input.addEventListener('blur', commit);
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+      else if (e.key === 'Escape') { e.preventDefault(); editingLine = null; renderTable(); }
+    });
+  }
+
+  document.getElementById('searchInput').addEventListener('input', (e) => {
+    searchTerm = e.target.value.trim();
+    renderTable();
+  });
+
+  // ---- next uncounted item ----
+
+  function openRapidCount() {
+    rapidQueue = viewRows().filter(l => !isCounted(l.obj)).map(l => l.rowNumber);
+    if (!rapidQueue.length) { setStatus('Everything matching your search is already counted.', 'ok'); return; }
+    rapidIdx = 0;
+    showRapidLine();
+    rapidDialog.showModal();
+  }
+
+  function showRapidLine() {
+    const line = lines.find(l => l.rowNumber === rapidQueue[rapidIdx]);
+    const prod = productByCode[line.obj['PRODUCT CODE']] || {};
+    const isWeight = line.obj.UNIT === 'kg';
+    document.getElementById('rapidTitle').textContent = prod['Product name'] || line.obj['PRODUCT CODE'];
+    document.getElementById('rapidSubtitle').textContent = `${line.obj['PRODUCT CODE']}${prod['Category'] ? ' · ' + prod['Category'] : ''}`;
+    const photo = document.getElementById('rapidPhoto');
+    if (prod['Photo URL']) { photo.src = prod['Photo URL']; photo.style.visibility = 'visible'; }
+    else { photo.removeAttribute('src'); photo.style.visibility = 'hidden'; }
+    document.getElementById('rapidSystemQty').textContent = `${(parseFloat(line.obj['SYSTEM QTY']) || 0).toFixed(2)} ${line.obj.UNIT}`;
+    const input = document.getElementById('rapidInput');
+    input.step = isWeight ? 'any' : '1';
+    input.value = '';
+    document.getElementById('rapidUnitLabel').textContent = isWeight ? 'kilograms' : 'units';
+    document.getElementById('rapidProgress').textContent = `${rapidIdx + 1} of ${rapidQueue.length} remaining`;
+    setRapidStatus('');
+    input.focus();
+  }
+
+  function advanceRapid() {
+    rapidIdx++;
+    if (rapidIdx >= rapidQueue.length) {
+      rapidDialog.close();
+      renderActive();
+      setStatus('Nice — every item counted.', 'ok');
+      return;
+    }
+    showRapidLine();
+    renderActive();
+  }
+
+  async function confirmRapid() {
+    const rowNumber = rapidQueue[rapidIdx];
+    const line = lines.find(l => l.rowNumber === rowNumber);
+    const input = document.getElementById('rapidInput');
+    const value = input.value.trim();
+    if (value === '') { setRapidStatus('Enter a quantity first.', 'error'); return; }
+    const cfg = await ensureAuth(setRapidStatus);
+    if (!cfg) return;
+    try {
+      await sheetsUpdateRange(cfg.spreadsheetId, `StockTakeLines!E${rowNumber}:G${rowNumber}`, [[value, line.obj.UNIT, todayIso()]], token, 'USER_ENTERED');
+      line.obj['COUNTED QTY'] = value;
+      line.obj['COUNTED AT'] = todayIso();
+      advanceRapid();
+    } catch (err) {
+      setRapidStatus('Error: ' + err.message, 'error');
+    }
+  }
+
+  document.getElementById('rapidBtn').addEventListener('click', openRapidCount);
+  document.getElementById('rapidCloseBtn').addEventListener('click', () => rapidDialog.close());
+  document.getElementById('rapidSkipBtn').addEventListener('click', advanceRapid);
+  document.getElementById('rapidConfirmBtn').addEventListener('click', confirmRapid);
+  document.getElementById('rapidInput').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); confirmRapid(); }
+  });
+  rapidDialog.addEventListener('click', (e) => { if (e.target === rapidDialog) rapidDialog.close(); });
+
+  // ---- wiring ----
+
+  document.getElementById('startBtn').addEventListener('click', startStockTake);
+  document.getElementById('completeBtn').addEventListener('click', completeStockTake);
+  document.getElementById('reloadBtn').addEventListener('click', loadAll);
+  document.getElementById('printBtn').addEventListener('click', () => window.print());
+
+  window.addEventListener('load', loadAll);
+</script>
+</body>
+</html>

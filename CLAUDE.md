@@ -35,6 +35,12 @@ models, sheet schemas, or conventions between the two.
   to the purchase order it was received against, when there is one.
 - **Orders** / **OrderLines** / **Allocations** — order header, order lines,
   and stock allocated to each line (FEFO-aware — see Allocations page logic).
+- **StockTakes** / **StockTakeLines** — a physical count session
+  (`stock-take.html`). Starting one snapshots every Active product's
+  computed on-hand qty into StockTakeLines (`SYSTEM QTY`) with a blank
+  `COUNTED QTY` — blank vs filled (not a status flag) is what "next
+  uncounted item" walks through, so a genuine zero count must be saved as
+  `"0"`, never left blank.
 
 **Important convention:** when adding a column to an existing tab, always
 append it to the END of that tab's `headers` array in `setup.html` — never
@@ -51,8 +57,9 @@ suppliers.html            Supplier list
 customers.html              Customer list
 purchase-orders.html           Place/receive supplier orders
 stock.html                       Stock view
-orders.html                        Orders + lines
-lists.html                           Pick/pack lists
+stock-take.html                    Physical count vs. system quantity
+orders.html                          Orders + lines
+lists.html                             Pick/pack lists
 ```
 
 ## Working here

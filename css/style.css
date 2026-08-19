@@ -223,9 +223,12 @@ dialog::backdrop{background:rgba(20,24,28,.55)}
 
 /* Picking/cutting/packing lists get printed and taken to the warehouse
    floor — strip the app chrome down to just the list content. */
+.print-only{display:none}
 @media print{
   .app-sidebar,.no-print{display:none!important}
   main{margin-left:0!important;max-width:none;padding:0}
   body{background:#fff}
   .panel{break-inside:avoid;box-shadow:none;border-color:#000}
+  .print-only{display:inline-block}
+  .blank-line{width:70px;height:1em;border-bottom:1px solid #000}
 }
