@@ -220,7 +220,7 @@
       const name = prod ? prod['Product name'] : '(unknown product)';
       return `<tr>
         <td><strong>${escapeHtml(p.code)}</strong><br><span class="muted" style="font-size:12px;">${escapeHtml(name)}</span></td>
-        <td class="num">${p.onHand.toFixed(2)} ${escapeHtml(p.unit)}</td>
+        <td class="num">${p.onHand.toFixed(2)} ${unitLabel(p.unit)}</td>
         <td>${bbeTag(p.nearestBbe)}</td>
         <td class="num">${p.batchCount}</td>
       </tr>`;
@@ -246,7 +246,7 @@
         <td>${bbeTag(b.bbe)}</td>
         <td class="num">${b.qtyReceived.toFixed(2)}</td>
         <td class="num">${b.qtyAllocated.toFixed(2)}</td>
-        <td class="num ${remainingClass}">${b.remaining.toFixed(2)} ${escapeHtml(b.unit)}</td>
+        <td class="num ${remainingClass}">${b.remaining.toFixed(2)} ${unitLabel(b.unit)}</td>
       </tr>`;
     }).join('');
   }

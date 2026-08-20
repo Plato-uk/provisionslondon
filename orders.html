@@ -289,7 +289,7 @@
               <input type="number" step="any" id="ord_addQty" placeholder="Qty">
             </div>
             <div class="field" style="max-width:80px; margin-bottom:0;">
-              <select id="ord_addUnit"><option value="kg">kg</option><option value="pc">pc</option></select>
+              <select id="ord_addUnit"><option value="kg">kg</option><option value="pc">Pieces</option></select>
             </div>
             <button type="button" class="btn ghost sm" id="ord_addLineBtn">+ Add</button>
           </div>
@@ -356,7 +356,7 @@
       <tr>
         <td>${escapeHtml(l.name)}</td>
         <td class="num">${escapeHtml(l.qty)}</td>
-        <td>${escapeHtml(l.unit)}</td>
+        <td>${unitLabel(l.unit)}</td>
         <td><button type="button" class="btn ghost sm" data-remove-line="${i}">Remove</button></td>
       </tr>
     `).join('');
@@ -455,7 +455,7 @@
               <input type="number" step="any" id="ord_view_addQty" placeholder="Qty">
             </div>
             <div class="field" style="max-width:80px; margin-bottom:0;">
-              <select id="ord_view_addUnit"><option value="kg">kg</option><option value="pc">pc</option></select>
+              <select id="ord_view_addUnit"><option value="kg">kg</option><option value="pc">Pieces</option></select>
             </div>
             <button type="button" class="btn ghost sm" id="ord_view_addLineBtn">+ Add</button>
           </div>
@@ -506,8 +506,8 @@
     const row = `
       <tr>
         <td>${escapeHtml(productName(l['PRODUCT CODE']))}<br><span class="code">${escapeHtml(l['PRODUCT CODE'])}</span></td>
-        <td class="num">${ordered} ${escapeHtml(l.UNIT)}</td>
-        <td class="num">${allocatedQty.toFixed(2)} ${escapeHtml(l.UNIT)}</td>
+        <td class="num">${ordered} ${unitLabel(l.UNIT)}</td>
+        <td class="num">${allocatedQty.toFixed(2)} ${unitLabel(l.UNIT)}</td>
         <td>${statusBadge}</td>
         <td style="white-space:nowrap;">
           <button type="button" class="btn ghost sm" data-toggle-alloc="${escapeHtml(l.ID)}">${isExpanded ? 'Close' : 'Allocate'}</button>
@@ -532,7 +532,7 @@
           <tr>
             <td class="code">${escapeHtml(a.obj['BATCH/LOT NUMBER'])}</td>
             <td>${escapeHtml(fmtDateShort(deliveryBbeFor(l['PRODUCT CODE'], a.obj['BATCH/LOT NUMBER']))) || '—'}</td>
-            <td class="num">${escapeHtml(a.obj['QTY ALLOCATED'])} ${escapeHtml(l.UNIT)}</td>
+            <td class="num">${escapeHtml(a.obj['QTY ALLOCATED'])} ${unitLabel(l.UNIT)}</td>
             <td><button type="button" class="btn ghost sm" data-remove-alloc="${escapeHtml(a.obj.ID)}">Remove</button></td>
           </tr>
         `).join('')}</tbody>
@@ -543,7 +543,7 @@
       <div class="inline">
         <div class="field" style="flex:2; margin-bottom:0;">
           <select data-line-batch="${escapeHtml(l.ID)}">
-            ${batches.map((b, i) => `<option value="${escapeHtml(b.batch)}"${i === 0 ? ' selected' : ''}>${escapeHtml(b.batch)} — ${b.remaining.toFixed(2)} ${escapeHtml(b.unit)} left, BBE ${escapeHtml(fmtDateShort(b.bbe)) || 'unknown'}${i === 0 ? ' (earliest — suggested)' : ''}</option>`).join('')}
+            ${batches.map((b, i) => `<option value="${escapeHtml(b.batch)}"${i === 0 ? ' selected' : ''}>${escapeHtml(b.batch)} — ${b.remaining.toFixed(2)} ${unitLabel(b.unit)} left, BBE ${escapeHtml(fmtDateShort(b.bbe)) || 'unknown'}${i === 0 ? ' (earliest — suggested)' : ''}</option>`).join('')}
           </select>
         </div>
         <div class="field" style="max-width:100px; margin-bottom:0;">

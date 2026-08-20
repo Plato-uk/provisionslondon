@@ -441,7 +441,7 @@
           <div class="arow-name">${escapeHtml(p['Product name'])}</div>
           <div class="arow-sub">${escapeHtml(p.Category || '')}</div>
         </div>
-        <span class="tag t-warn">${onHand.toFixed(unit === 'kg' ? 1 : 0)}${unit} left</span>
+        <span class="tag t-warn">${onHand.toFixed(unit === 'kg' ? 1 : 0)}${unit === 'kg' ? 'kg' : ' ' + unitLabel(unit)} left</span>
       </div>`;
     }).join('');
   }

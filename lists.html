@@ -216,8 +216,8 @@
           <tbody>${shortRows.map(r => `
             <tr style="background:var(--warn-bg);">
               <td><strong>${escapeHtml(r.code)}</strong><br><span class="muted" style="font-size:12px;">${escapeHtml(r.name)}</span></td>
-              <td class="num">${r.ordered.toFixed(2)} ${escapeHtml(r.unit)}</td>
-              <td class="num">${r.allocated.toFixed(2)} ${escapeHtml(r.unit)}</td>
+              <td class="num">${r.ordered.toFixed(2)} ${unitLabel(r.unit)}</td>
+              <td class="num">${r.allocated.toFixed(2)} ${unitLabel(r.unit)}</td>
               <td>${escapeHtml(r.customer)}</td>
               <td>${escapeHtml(fmtDateShort(r.deliveryDate)) || '—'}</td>
               <td>${orderLink(r.orderId)}</td>
@@ -234,7 +234,7 @@
             <tr>
               <td><strong>${escapeHtml(r.code)}</strong><br><span class="muted" style="font-size:12px;">${escapeHtml(r.name)}</span></td>
               <td>${escapeHtml(r.parentCode)} <span class="muted">— ${escapeHtml(r.parentName)}</span></td>
-              <td class="num">${r.qty.toFixed(2)} ${escapeHtml(r.unit)}</td>
+              <td class="num">${r.qty.toFixed(2)} ${unitLabel(r.unit)}</td>
               <td>${r.cutLife ? r.cutLife + ' day(s)' : '—'}</td>
               <td>${escapeHtml(r.customer)}</td>
               <td>${escapeHtml(fmtDateShort(r.deliveryDate)) || '—'}</td>
@@ -253,7 +253,7 @@
               <td><strong>${escapeHtml(r.code)}</strong><br><span class="muted" style="font-size:12px;">${escapeHtml(r.name)}</span></td>
               <td class="code">${escapeHtml(r.batch)}</td>
               <td>${escapeHtml(fmtDateShort(r.bbe)) || '—'}</td>
-              <td class="num">${r.qty.toFixed(2)} ${escapeHtml(r.unit)}</td>
+              <td class="num">${r.qty.toFixed(2)} ${unitLabel(r.unit)}</td>
               <td>${escapeHtml(r.customer)}</td>
               <td>${escapeHtml(fmtDateShort(r.deliveryDate)) || '—'}</td>
               <td class="no-print">${orderLink(r.orderId)}</td>

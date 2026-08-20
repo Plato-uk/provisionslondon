@@ -252,7 +252,7 @@
               <input type="number" step="any" id="po_addQty" placeholder="Qty">
             </div>
             <div class="field" style="max-width:80px; margin-bottom:0;">
-              <select id="po_addUnit"><option value="kg">kg</option><option value="pc">pc</option></select>
+              <select id="po_addUnit"><option value="kg">kg</option><option value="pc">Pieces</option></select>
             </div>
             <button type="button" class="btn ghost sm" id="po_addLineBtn">+ Add</button>
           </div>
@@ -336,7 +336,7 @@
       <tr>
         <td>${escapeHtml(l.name)}</td>
         <td class="num">${escapeHtml(l.qty)}</td>
-        <td>${escapeHtml(l.unit)}</td>
+        <td>${unitLabel(l.unit)}</td>
         <td><button type="button" class="btn ghost sm" data-remove-line="${i}">Remove</button></td>
       </tr>
     `).join('');
@@ -396,7 +396,7 @@
       <tr>
         <td>${escapeHtml(productName(l.obj['PRODUCT CODE']))}</td>
         <td class="num">${escapeHtml(l.obj['QTY ORDERED'])}</td>
-        <td>${escapeHtml(l.obj.UNIT)}</td>
+        <td>${unitLabel(l.obj.UNIT)}</td>
         ${!isOrdered ? `<td class="num">${escapeHtml(l.obj['QTY RECEIVED'])}</td><td>${escapeHtml(l.obj['LOT NUMBER'])}</td><td>${escapeHtml(l.obj['BEST BEFORE DATE'])}</td>` : ''}
       </tr>
     `).join('');
@@ -437,7 +437,7 @@
   }
 
   async function copyPoToClipboard(lines) {
-    const text = lines.map(l => `${productName(l.obj['PRODUCT CODE'])} — ${l.obj['QTY ORDERED']} ${l.obj.UNIT}`).join('\n');
+    const text = lines.map(l => `${productName(l.obj['PRODUCT CODE'])} — ${l.obj['QTY ORDERED']} ${unitLabel(l.obj.UNIT)}`).join('\n');
     try {
       await navigator.clipboard.writeText(text);
       setDlgStatus('Copied to clipboard.', 'ok');
@@ -566,7 +566,7 @@
       <tr data-li="${li}" data-lj="${lj}">
         ${first ? `<td rowspan="${l.lots.length}">${escapeHtml(l.name)}${l.isNew ? ' <span class="tag t-chill">Extra</span>' : ''}</td>` : ''}
         <td class="num"><input type="number" step="any" data-f="qty" value="${escapeHtml(lot.qty)}" style="width:70px;"></td>
-        ${first ? `<td rowspan="${l.lots.length}"><select data-f="unit" style="width:70px;"><option value="kg"${l.unit === 'kg' ? ' selected' : ''}>kg</option><option value="pc"${l.unit === 'pc' ? ' selected' : ''}>pc</option></select></td>` : ''}
+        ${first ? `<td rowspan="${l.lots.length}"><select data-f="unit" style="width:70px;"><option value="kg"${l.unit === 'kg' ? ' selected' : ''}>kg</option><option value="pc"${l.unit === 'pc' ? ' selected' : ''}>Pieces</option></select></td>` : ''}
         <td><input type="text" data-f="lot" value="${escapeHtml(lot.lot)}" placeholder="e.g. H-2831" style="width:110px;"></td>
         <td><input type="date" data-f="bbe" value="${escapeHtml(lot.bbe)}"></td>
         <td style="white-space:nowrap;">${last ? `<button type="button" class="btn ghost sm" data-recv-addlot="${li}">+ Lot</button> ` : ''}<button type="button" class="btn ghost sm" data-recv-remove="${li}:${lj}">Remove</button></td>

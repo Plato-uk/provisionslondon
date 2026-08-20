@@ -31,3 +31,9 @@ function escapeHtml(s) {
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
 }
+
+// Display label for a stored UNIT value — the sheet keeps the short code
+// ('kg', 'pc') so existing rows and dropdown values don't need to change.
+function unitLabel(u) {
+  return u === 'pc' ? 'Pieces' : (u || '');
+}

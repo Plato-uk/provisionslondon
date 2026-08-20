@@ -359,8 +359,8 @@
         <td>${photoHtml}</td>
         <td><strong>${escapeHtml(l.obj['PRODUCT CODE'])}</strong><br><span class="muted" style="font-size:12px;">${escapeHtml(l.prod['Product name'] || '')}</span></td>
         <td>${escapeHtml(l.prod['Category'] || '')}</td>
-        <td class="num">${(parseFloat(l.obj['SYSTEM QTY']) || 0).toFixed(2)} ${escapeHtml(l.obj.UNIT)}</td>
-        <td class="num">${counted ? parseFloat(l.obj['COUNTED QTY']).toFixed(2) + ' ' + escapeHtml(l.obj.UNIT) : '<span class="muted">—</span>'}</td>
+        <td class="num">${(parseFloat(l.obj['SYSTEM QTY']) || 0).toFixed(2)} ${unitLabel(l.obj.UNIT)}</td>
+        <td class="num">${counted ? parseFloat(l.obj['COUNTED QTY']).toFixed(2) + ' ' + unitLabel(l.obj.UNIT) : '<span class="muted">—</span>'}</td>
         <td class="num ${varClass}">${variance === null ? '' : (variance > 0 ? '+' : '') + variance.toFixed(2)}</td>
       </tr>`;
     }).join('');
@@ -457,7 +457,7 @@
   }
 
   function countedCellHtml(l) {
-    if (isCounted(l.obj)) return `${parseFloat(l.obj['COUNTED QTY']).toFixed(2)} ${escapeHtml(l.obj.UNIT)}`;
+    if (isCounted(l.obj)) return `${parseFloat(l.obj['COUNTED QTY']).toFixed(2)} ${unitLabel(l.obj.UNIT)}`;
     return `<span class="muted no-print">—</span><span class="print-only blank-line"></span>`;
   }
 
@@ -481,7 +481,7 @@
         <td>${photoHtml}</td>
         <td><strong>${escapeHtml(l.obj['PRODUCT CODE'])}</strong><br><span class="muted" style="font-size:12px;">${escapeHtml(l.prod['Product name'] || '')}</span></td>
         <td>${escapeHtml(l.prod['Category'] || '')}</td>
-        <td class="num">${(parseFloat(l.obj['SYSTEM QTY']) || 0).toFixed(2)} ${escapeHtml(l.obj.UNIT)}</td>
+        <td class="num">${(parseFloat(l.obj['SYSTEM QTY']) || 0).toFixed(2)} ${unitLabel(l.obj.UNIT)}</td>
         <td class="num cell-editable" data-col="counted" title="Click to edit">${countedCellHtml(l)}</td>
         <td class="num ${varClass}">${variance === null ? '' : (variance > 0 ? '+' : '') + variance.toFixed(2)}</td>
       </tr>`;
@@ -501,12 +501,12 @@
       const sysQty = (parseFloat(l.obj['SYSTEM QTY']) || 0).toFixed(2);
       const lots = lotsByProduct[code] || [];
       const lotsHtml = lots.length > 1
-        ? `<div class="pt-lots">Lots: ${lots.map(x => `${escapeHtml(x.batch)} (${x.remaining.toFixed(2)}${escapeHtml(x.unit)})`).join(' &middot; ')}</div>`
+        ? `<div class="pt-lots">Lots: ${lots.map(x => `${escapeHtml(x.batch)} (${x.remaining.toFixed(2)} ${unitLabel(x.unit)})`).join(' &middot; ')}</div>`
         : '';
       return `<div class="pt-item">
         <div class="pt-row1"><span class="pt-code">${escapeHtml(code)}</span><span class="pt-name">${escapeHtml(l.prod['Product name'] || '')}</span><span class="pt-cat">${escapeHtml(l.prod['Category'] || '')}</span></div>
         ${lotsHtml}
-        <div class="pt-row3"><span>Sys: ${sysQty} ${escapeHtml(l.obj.UNIT)}</span><span>Count: <span class="pt-blank"></span></span></div>
+        <div class="pt-row3"><span>Sys: ${sysQty} ${unitLabel(l.obj.UNIT)}</span><span>Count: <span class="pt-blank"></span></span></div>
       </div>`;
     }).join('');
   }
@@ -580,7 +580,7 @@
     const photo = document.getElementById('rapidPhoto');
     if (prod['Photo URL']) { photo.src = prod['Photo URL']; photo.style.visibility = 'visible'; }
     else { photo.removeAttribute('src'); photo.style.visibility = 'hidden'; }
-    document.getElementById('rapidSystemQty').textContent = `${(parseFloat(line.obj['SYSTEM QTY']) || 0).toFixed(2)} ${line.obj.UNIT}`;
+    document.getElementById('rapidSystemQty').textContent = `${(parseFloat(line.obj['SYSTEM QTY']) || 0).toFixed(2)} ${unitLabel(line.obj.UNIT)}`;
     const input = document.getElementById('rapidInput');
     input.step = isWeight ? 'any' : '1';
     input.value = '';
