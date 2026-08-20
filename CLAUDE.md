@@ -16,17 +16,17 @@ models, sheet schemas, or conventions between the two.
   in `js/config.js`, called on every page but a no-op where the badge
   markup isn't present).
 - Generic CRUD table framework in `js/crud-page.js` — every flat list page
-  (Products, Suppliers, Customers, Orders, OrderLines, Allocations)
-  configures one `initCrudTable()` call instead of hand-rolling
-  fetch/append/update/delete logic. Read the comment block at the top of
-  that file before adding a new page or field type. Purchase Orders is
-  bespoke, hand-rolled JS (`purchase-orders.html`) — its line-item/date-range
-  UX doesn't fit the generic single-flat-table model. Orders' *creation* is
-  similarly bespoke (the "+ Add order" wizard in `orders.html`, which writes
-  an Orders row plus its OrderLines rows together in one step and passes
-  `hideAddButton: true` to the Orders table's own `initCrudTable()` call) —
-  but viewing/editing/deleting Orders, OrderLines and Allocations afterwards
-  still goes through the generic framework, unchanged.
+  (Products, Suppliers, Customers) configures one `initCrudTable()` call
+  instead of hand-rolling fetch/append/update/delete logic. Read the
+  comment block at the top of that file before adding a new page or field
+  type. Purchase Orders and Orders are both bespoke, hand-rolled JS
+  (`purchase-orders.html`, `orders.html`) rather than the generic
+  framework — their line-item UX (and, for Orders, per-line stock
+  allocation) doesn't fit the generic single-flat-table model. Orders,
+  OrderLines and Allocations have no page of their own any more: creating
+  an order (the "+ Add order" wizard), viewing it, changing its STATUS, and
+  allocating stock to each line (FEFO lot picker, writes straight to
+  Allocations) all happen inside one dialog on `orders.html`.
 
 ## Sheet schema (see `setup.html`'s `REQUIRED_TABS` for the source of truth)
 - **Products** — item master, one row per SKU keyed by `Product code`
@@ -44,7 +44,8 @@ models, sheet schemas, or conventions between the two.
   to the purchase order it was received against, when there is one.
 - **Orders** / **OrderLines** / **Allocations** — order header (including
   `PLACED BY`, appended to Orders' headers), order lines, and stock
-  allocated to each line (FEFO-aware — see Allocations page logic).
+  allocated to each line. All three are managed entirely from
+  `orders.html`'s order-view dialog — see the bullet above.
 - **StockTakes** / **StockTakeLines** — a physical count session
   (`stock-take.html`). Starting one snapshots every Active product's
   computed on-hand qty into StockTakeLines (`SYSTEM QTY`) with a blank
@@ -68,8 +69,8 @@ customers.html              Customer list
 purchase-orders.html           Place/receive supplier orders
 stock.html                       Stock view
 stock-take.html                    Physical count vs. system quantity
-orders.html                          Orders + lines
-lists.html                             Pick/pack lists
+orders.html                          Place orders, allocate stock
+lists.html                             Picking/cutting/packing lists
 ```
 
 ## Working here

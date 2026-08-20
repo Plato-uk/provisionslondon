@@ -23,12 +23,6 @@
 //                            // (e.g. Products.CODE) — that key field is
 //                            // shown but locked once editing an existing
 //                            // row, since other tabs may reference it.
-//   hideAddButton: true,     // opt-in: suppress the toolbar's own "+ Add"
-//                            // button/dialog — for a tab whose rows are only
-//                            // ever created through a bespoke flow elsewhere
-//                            // on the page (e.g. Orders — see orders.html),
-//                            // while this table still handles listing,
-//                            // viewing, editing and deleting them.
 //   fields: [                // one entry per header, in header order
 //     { key:'NAME', label:'Name', type:'text', required:true, primary:true }, // primary: this cell (and any 'image' cell) opens the detail dialog
 //     { key:'TIER', label:'Tier', type:'text', placeholder:'e.g. Standard' },
@@ -137,7 +131,7 @@
 //     as a guaranteed fallback if no cell in a given row happens to do so.
 
 async function initCrudTable(config) {
-  const { mount, title, tab, headers, autoId, fields, inlineEdit, subtitle, groupBy, catalogue, onLoad, hideAddButton } = config;
+  const { mount, title, tab, headers, autoId, fields, inlineEdit, subtitle, groupBy, catalogue, onLoad } = config;
   // Optional category-style grouping: rows are bucketed by this header's
   // value and each bucket gets a `tr.group` heading row. Display-only —
   // it never touches the sheet's row order. Suppressed while a column
@@ -190,7 +184,7 @@ async function initCrudTable(config) {
   ` : `
     <div class="panel-h" style="border:none; background:none; padding:0 0 8px;">
       <h3 style="text-transform:none; letter-spacing:normal; font-size:15px; color:var(--ink); font-weight:600;">${escapeHtml(title)}</h3>
-      ${hideAddButton ? '' : `<button type="button" class="btn add-btn sm" id="${tab}_addBtn" style="margin:0;">+ Add ${escapeHtml(singular)}</button>`}
+      <button type="button" class="btn add-btn sm" id="${tab}_addBtn" style="margin:0;">+ Add ${escapeHtml(singular)}</button>
       <button type="button" class="btn ghost sm" id="${tab}_reload" style="margin:0;">Reload</button>
     </div>
     <div class="filter-bar">
@@ -909,7 +903,7 @@ async function initCrudTable(config) {
     guard.arm();
   }
 
-  if (!catalogue && !hideAddButton) root.querySelector(`#${tab}_addBtn`).addEventListener('click', openAddDialog);
+  if (!catalogue) root.querySelector(`#${tab}_addBtn`).addEventListener('click', openAddDialog);
   // Both the header's close button and the footer's Cancel button carry
   // data-cancel — wire every match, not just the first.
   form.querySelectorAll('[data-cancel]').forEach(el => el.addEventListener('click', () => guard.guardedClose()));

@@ -41,26 +41,26 @@
 
 <main>
   <h2>Orders</h2>
-  <p class="sub">Place a customer order — pick the customer and delivery date, then search for products to add. Orders, Order lines and Allocations below let you track and edit status as work progresses.</p>
+  <p class="sub">Place a customer order, then allocate stock to it from what's in — allocated orders feed the <a href="lists.html">picking &amp; packing lists</a> for the week.</p>
 
   <div id="signedOutNotice" class="note" style="display:none;">
     Not signed in — go to the <a href="index.html" style="color:inherit; text-decoration:underline;">Dashboard</a> to sign in. Your session will carry over here.
   </div>
 
-  <div class="panel-h" style="border:none; background:none; padding:0 0 12px;">
-    <h3 style="text-transform:none; letter-spacing:normal; font-size:15px; color:var(--ink); font-weight:600;">New order</h3>
-    <button type="button" class="btn add-btn sm" id="newOrderBtn" style="margin:0;">+ Add order</button>
+  <div id="ordersCard" style="display:none;">
+    <div class="panel-h" style="border:none; background:none; padding:0 0 8px;">
+      <h3 style="text-transform:none; letter-spacing:normal; font-size:15px; color:var(--ink); font-weight:600;">Orders</h3>
+      <button type="button" class="btn add-btn sm" id="newOrderBtn" style="margin:0;">+ Add order</button>
+      <button type="button" class="btn ghost sm" id="reloadBtn" style="margin:0;">Reload</button>
+    </div>
+    <div class="panel"><div class="scroll" style="overflow-x:auto;">
+      <table id="ordersTable">
+        <thead><tr><th>ID</th><th>Customer</th><th>Delivery date</th><th>Status</th><th>Placed by</th><th class="num">Items</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div></div>
+    <div id="status" class="mono" style="margin-top:8px; font-size:12.5px; color:var(--steel);"></div>
   </div>
-
-  <div id="ordersMount"></div>
-
-  <h2 style="margin-top:32px;">Order lines</h2>
-  <p class="sub">One row per product on an order.</p>
-  <div id="orderLinesMount"></div>
-
-  <h2 style="margin-top:32px;">Allocations</h2>
-  <p class="sub">Assigns a specific delivered batch/lot to an order line. This is the stock-OUT event — real-time availability is Deliveries minus Allocations, computed per batch.</p>
-  <div id="allocationsMount"></div>
 </main>
 
 <dialog id="orderDialog">
@@ -72,386 +72,579 @@
 <script src="js/util.js?v=1"></script>
 <script src="js/dialog-guard.js?v=1"></script>
 <script src="js/searchable-select.js?v=1"></script>
-<script src="js/crud-page.js?v=11"></script>
 <script>
+  const ORDER_STATUSES = ['New', 'Allocated', 'Picked', 'Cut', 'Packed', 'Dispatched'];
+
+  let token = null;
+  let customers = [];       // Customers
+  let products = [];        // Products (all — the New Order wizard filters to Active itself)
+  let ordersData = [];      // [{ rowNumber, obj }] from Orders
+  let orderLinesData = [];  // [{ rowNumber, obj }] from OrderLines
+  let allocationsData = []; // [{ rowNumber, obj }] from Allocations
+  let deliveriesData = [];  // [{ rowNumber, obj }] from Deliveries — source of what's in stock, per lot
+  let sheetIds = {};         // tab name -> sheetId, lazily populated (needed to delete an allocation row)
+  let draftLines = [];       // New Order wizard's working line items
+  let expandedLineId = null; // which order line's allocation panel is open in the View dialog
+  let dirtyCheck = null;     // set per dialog mode; attachDiscardGuard calls it via a stable wrapper
+
+  const statusEl = document.getElementById('status');
+  const dialogEl = document.getElementById('orderDialog');
+  const form = document.getElementById('orderForm');
+  const guard = attachDiscardGuard(dialogEl, { scope: form, isDirtyOverride: () => dirtyCheck ? dirtyCheck() : false });
+
+  function setStatus(msg, kind) {
+    statusEl.textContent = msg;
+    statusEl.style.color = kind === 'error' ? 'var(--crit)' : kind === 'ok' ? 'var(--ok)' : 'var(--steel)';
+  }
+
+  function setDlgStatus(msg, kind) {
+    const el = form.querySelector('#orderDlgStatus');
+    if (!el) return;
+    el.textContent = msg;
+    el.style.color = kind === 'error' ? 'var(--crit)' : kind === 'ok' ? 'var(--ok)' : 'var(--steel)';
+  }
+
   function requireAuth() {
     const cfg = getStoredConfig();
-    const token = tryResumeSession();
+    token = tryResumeSession();
     const ok = !!(token && cfg.spreadsheetId);
     document.getElementById('signedOutNotice').style.display = ok ? 'none' : 'block';
+    document.getElementById('ordersCard').style.display = ok ? 'block' : 'none';
     return ok;
   }
 
-  let ordersTable = null;
-  let orderLinesTable = null;
-  let orderCustomers = [];    // Customers, loaded once for the New Order wizard's customer picker
-  let orderProductsCatalog = []; // Products, loaded once for the New Order wizard's product search
+  async function ensureAuth(statusFn) {
+    const cfg = getStoredConfig();
+    token = tryResumeSession();
+    if (!token || !cfg.spreadsheetId) { (statusFn || setStatus)('Sign in on the Dashboard first.', 'error'); return null; }
+    return cfg;
+  }
 
-  function toPlainObjects(rows) {
+  async function ensureSheetId(cfg, tabName) {
+    if (sheetIds[tabName] !== undefined) return sheetIds[tabName];
+    const tabs = await sheetsGetTabs(cfg.spreadsheetId, token);
+    tabs.forEach(t => { sheetIds[t.title] = t.sheetId; });
+    return sheetIds[tabName] ?? null;
+  }
+
+  function toRowObjects(rows) {
     if (!rows.length) return [];
     const [head, ...rest] = rows;
-    return rest.map(r => { const o = {}; head.forEach((h, i) => { o[h] = r[i] ?? ''; }); return o; });
+    return rest.map((r, i) => {
+      const o = {};
+      head.forEach((h, idx) => { o[h] = r[idx] ?? ''; });
+      return { rowNumber: i + 2, obj: o };
+    });
   }
 
-  // Loaded once alongside the tables below rather than on every "+ Add
-  // order" click — mirrors how Purchase Orders loads its suppliers/products
-  // once up front. A failure here just leaves the wizard's pickers empty;
-  // it doesn't block the Orders/OrderLines/Allocations tables above.
-  async function loadOrderWizardData() {
-    const cfg = getStoredConfig();
-    const token = tryResumeSession();
-    if (!token || !cfg.spreadsheetId) return;
-    try {
-      const [customerRows, productRows] = await Promise.all([
-        sheetsGet(cfg.spreadsheetId, 'Customers!A:Z', token),
-        sheetsGet(cfg.spreadsheetId, 'Products!A:Z', token)
-      ]);
-      orderCustomers = toPlainObjects(customerRows);
-      orderProductsCatalog = toPlainObjects(productRows).filter(p => (p.Active || 'Yes') !== 'No');
-    } catch (err) { /* wizard pickers stay empty — see comment above */ }
+  function todayIso() { return new Date().toISOString().slice(0, 10); }
+
+  function fmtDateShort(iso) {
+    if (!iso) return '';
+    const d = new Date(iso + 'T00:00:00');
+    if (isNaN(d)) return iso;
+    return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
   }
 
-  window.addEventListener('load', async () => {
+  function statusTag(status) {
+    const s = status || 'New';
+    const cls = s === 'Dispatched' ? 't-ok' : s === 'New' ? 't-amb' : 't-chill';
+    return `<span class="tag ${cls}">${escapeHtml(s)}</span>`;
+  }
+
+  function productName(code) {
+    const p = products.find(p => p['Product code'] === code);
+    return p ? p['Product name'] : code;
+  }
+
+  // ---- load + list ----
+
+  async function loadAll() {
     if (!requireAuth()) return;
+    const cfg = getStoredConfig();
+    setStatus('Loading...');
+    try {
+      const [customerRows, productRows, orderRows, lineRows, allocRows, deliveryRows] = await Promise.all([
+        sheetsGet(cfg.spreadsheetId, 'Customers!A:Z', token),
+        sheetsGet(cfg.spreadsheetId, 'Products!A:Z', token),
+        sheetsGet(cfg.spreadsheetId, 'Orders!A:Z', token),
+        sheetsGet(cfg.spreadsheetId, 'OrderLines!A:Z', token),
+        sheetsGet(cfg.spreadsheetId, 'Allocations!A:Z', token),
+        sheetsGet(cfg.spreadsheetId, 'Deliveries!A:Z', token)
+      ]);
+      customers = toRowObjects(customerRows).map(r => r.obj);
+      products = toRowObjects(productRows).map(r => r.obj);
+      ordersData = toRowObjects(orderRows);
+      orderLinesData = toRowObjects(lineRows);
+      allocationsData = toRowObjects(allocRows);
+      deliveriesData = toRowObjects(deliveryRows);
+      renderTable();
+      setStatus(`Loaded ${ordersData.length} order(s).`, 'ok');
+      checkDeepLink();
+    } catch (err) {
+      setStatus('Error loading: ' + err.message, 'error');
+    }
+  }
 
-    ordersTable = await initCrudTable({
-      mount: '#ordersMount',
-      title: 'Orders',
-      subtitle: 'The order header — date, customer, delivery date, status and who placed it.',
-      tab: 'Orders',
-      headers: ['ID', 'DATE', 'CUSTOMER', 'DELIVERY DATE', 'STATUS', 'NOTES', 'PLACED BY'],
-      autoId: 'ORD',
-      hideAddButton: true,
-      fields: [
-        { key: 'DATE', label: 'Date', type: 'date', required: true, default: 'today' },
-        { key: 'CUSTOMER', label: 'Customer', type: 'ref', refTab: 'Customers', refValue: 'Customer name (as in Xero)', required: true },
-        { key: 'DELIVERY DATE', label: 'Delivery date', type: 'date' },
-        { key: 'STATUS', label: 'Status', type: 'select', options: ['New', 'Allocated', 'Picked', 'Cut', 'Packed', 'Dispatched'], required: true },
-        { key: 'NOTES', label: 'Notes', type: 'textarea' },
-        { key: 'PLACED BY', label: 'Placed by', type: 'text' }
-      ],
-      onLoad: (rows, get, openEdit) => {
-        const id = new URLSearchParams(location.search).get('open');
-        if (!id) return;
-        history.replaceState(null, '', location.pathname);
-        const row = rows.find(r => get(r.values, 'ID') === id);
-        if (row) openEdit(row.rowNumber);
-      }
-    });
+  function sortOrders(list) {
+    return [...list].sort((a, b) => (a.obj['DELIVERY DATE'] || '9999').localeCompare(b.obj['DELIVERY DATE'] || '9999'));
+  }
 
-    orderLinesTable = await initCrudTable({
-      mount: '#orderLinesMount',
-      title: 'OrderLines',
-      subtitle: 'One row per product on an order.',
-      tab: 'OrderLines',
-      headers: ['ID', 'ORDER ID', 'PRODUCT CODE', 'QTY ORDERED', 'UNIT', 'STATUS', 'NOTES'],
-      autoId: 'OL',
-      fields: [
-        { key: 'ORDER ID', label: 'Order', type: 'ref', refTab: 'Orders', refValue: 'ID', refLabel: 'CUSTOMER', required: true },
-        { key: 'PRODUCT CODE', label: 'Product code', type: 'ref', refTab: 'Products', refValue: 'Product code', refLabel: 'Product name', required: true },
-        { key: 'QTY ORDERED', label: 'Qty ordered', type: 'number', required: true },
-        { key: 'UNIT', label: 'Unit', type: 'select', options: ['kg', 'pc'] },
-        { key: 'STATUS', label: 'Status', type: 'select', options: ['New', 'Allocated', 'Picked', 'Cut', 'Packed'] },
-        { key: 'NOTES', label: 'Notes', type: 'textarea' }
-      ]
-    });
+  function renderTable() {
+    const tbody = document.querySelector('#ordersTable tbody');
+    if (!ordersData.length) {
+      tbody.innerHTML = `<tr><td colspan="6" class="empty" style="padding:18px;">No orders yet.</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = sortOrders(ordersData).map(r => {
+      const o = r.obj;
+      const itemCount = orderLinesData.filter(l => l.obj['ORDER ID'] === o.ID).length;
+      return `<tr data-id="${escapeHtml(o.ID)}" style="cursor:pointer;">
+        <td class="code">${escapeHtml(o.ID)}</td>
+        <td>${escapeHtml(o.CUSTOMER)}</td>
+        <td>${escapeHtml(fmtDateShort(o['DELIVERY DATE'])) || '—'}</td>
+        <td>${statusTag(o.STATUS)}</td>
+        <td>${escapeHtml(o['PLACED BY'])}</td>
+        <td class="num">${itemCount}</td>
+      </tr>`;
+    }).join('');
+  }
 
-    await initCrudTable({
-      mount: '#allocationsMount',
-      title: 'Allocations',
-      subtitle: 'Assigns a delivered batch/lot to an order line — the stock-out event.',
-      tab: 'Allocations',
-      headers: ['ID', 'ORDER LINE ID', 'PRODUCT CODE', 'BATCH/LOT NUMBER', 'QTY ALLOCATED', 'ALLOCATED DATE'],
-      autoId: 'ALO',
-      fields: [
-        { key: 'ORDER LINE ID', label: 'Order line', type: 'ref', refTab: 'OrderLines', refValue: 'ID', refLabel: 'PRODUCT CODE', required: true },
-        { key: 'PRODUCT CODE', label: 'Product code', type: 'ref', refTab: 'Products', refValue: 'Product code', refLabel: 'Product name', required: true },
-        { key: 'BATCH/LOT NUMBER', label: 'Batch / lot number', type: 'ref', refTab: 'Deliveries', refValue: 'BATCH/LOT NUMBER', refLabel: 'PRODUCT CODE', required: true },
-        { key: 'QTY ALLOCATED', label: 'Qty allocated', type: 'number', required: true },
-        { key: 'ALLOCATED DATE', label: 'Allocated date', type: 'date', required: true, default: 'today' }
-      ]
-    });
-
-    setupAllocationFefoHelper();
-    await loadOrderWizardData();
-    setupNewOrderWizard();
+  document.getElementById('ordersTable').addEventListener('click', (e) => {
+    const tr = e.target.closest('tr[data-id]');
+    if (tr) openViewDialog(tr.dataset.id);
   });
 
-  // ---- New Order wizard — same dialog style as the Purchase Orders "+ New
-  // PO" flow: pick a customer + delivery date, search products by name or
-  // code to build up the line items, then confirm creates both the Orders
-  // header row and its OrderLines rows in one step. Existing orders keep
-  // being viewed/edited/progressed (status etc.) through the Orders and
-  // OrderLines tables above, unchanged.
-  function setupNewOrderWizard() {
-    let draftLines = []; // { code, name, qty, unit }
-    let dirtyCheck = null;
+  // Deep link from the Dashboard/Lists pages (?open=ORD001) — opens straight
+  // into that order's view. Safe to call after every loadAll(): the query
+  // param is stripped from the URL the first time, so later reloads (e.g.
+  // after allocating stock) just find nothing to do.
+  function checkDeepLink() {
+    const id = new URLSearchParams(location.search).get('open');
+    if (!id) return;
+    history.replaceState(null, '', location.pathname);
+    if (ordersData.some(r => r.obj.ID === id)) openViewDialog(id);
+  }
 
-    const dialogEl = document.getElementById('orderDialog');
-    const form = document.getElementById('orderForm');
-    const guard = attachDiscardGuard(dialogEl, { scope: form, isDirtyOverride: () => dirtyCheck ? dirtyCheck() : false });
+  // ---- create order (New Order wizard) ----
 
-    function setDlgStatus(msg, kind) {
-      const el = form.querySelector('#orderDlgStatus');
-      if (!el) return;
-      el.textContent = msg;
-      el.style.color = kind === 'error' ? 'var(--crit)' : kind === 'ok' ? 'var(--ok)' : 'var(--steel)';
-    }
-
-    function todayIso() { return new Date().toISOString().slice(0, 10); }
-
-    function renderForm() {
-      const customers = orderCustomers;
-      const orderProducts = orderProductsCatalog;
-      draftLines = [];
-      const info = getStoredUserInfo();
-      form.innerHTML = `
-        <div class="dlg-h">
-          <div>
-            <div class="ttl">New Order</div>
-            <div class="subtitle">Pick a customer and delivery date, then search for products to add.</div>
-          </div>
-          <button type="button" class="dlg-close" data-cancel aria-label="Close">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
-          </button>
+  function renderNewOrderForm() {
+    draftLines = [];
+    const info = getStoredUserInfo();
+    const orderProducts = products.filter(p => (p.Active || 'Yes') !== 'No');
+    form.innerHTML = `
+      <div class="dlg-h">
+        <div>
+          <div class="ttl">New Order</div>
+          <div class="subtitle">Pick a customer and delivery date, then search for products to add.</div>
         </div>
-        <div class="dlg-b">
-          <div class="row">
-            <div class="col field">
-              <label>Customer *</label>
-              <select id="ord_customer"><option value="">Select a customer…</option>${customers.map(c => `<option value="${escapeHtml(c['Customer name (as in Xero)'])}">${escapeHtml(c['Customer name (as in Xero)'])}</option>`).join('')}</select>
-            </div>
-            <div class="col field">
-              <label>Delivery date *</label>
-              <input type="date" id="ord_deliveryDate">
-            </div>
+        <button type="button" class="dlg-close" data-cancel aria-label="Close">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+      </div>
+      <div class="dlg-b">
+        <div class="row">
+          <div class="col field">
+            <label>Customer *</label>
+            <select id="ord_customer"><option value="">Select a customer…</option>${customers.map(c => `<option value="${escapeHtml(c['Customer name (as in Xero)'])}">${escapeHtml(c['Customer name (as in Xero)'])}</option>`).join('')}</select>
           </div>
-          <div class="row">
-            <div class="col field">
-              <label>Order date</label>
-              <input type="date" id="ord_orderDate" value="${todayIso()}">
-            </div>
-            <div class="col field">
-              <label>Placed by *</label>
-              <input type="text" id="ord_placedBy" value="${escapeHtml(info.name || info.email || '')}" placeholder="Your name">
-            </div>
+          <div class="col field">
+            <label>Delivery date *</label>
+            <input type="date" id="ord_deliveryDate">
           </div>
-
-          <div class="field">
-            <label>Add product</label>
-            <div class="inline">
-              <div class="field" style="flex:2; margin-bottom:0;">
-                <select id="ord_addProduct">
-                  <option value="">${orderProducts.length ? 'Search by name or code…' : 'No products set up yet'}</option>
-                  ${orderProducts.map(p => `<option value="${escapeHtml(p['Product code'])}">${escapeHtml(p['Product name'])} — ${escapeHtml(p['Product code'])}</option>`).join('')}
-                </select>
-              </div>
-              <div class="field" style="max-width:90px; margin-bottom:0;">
-                <input type="number" step="any" id="ord_addQty" placeholder="Qty">
-              </div>
-              <div class="field" style="max-width:80px; margin-bottom:0;">
-                <select id="ord_addUnit"><option value="kg">kg</option><option value="pc">pc</option></select>
-              </div>
-              <button type="button" class="btn ghost sm" id="ord_addLineBtn">+ Add</button>
-            </div>
-          </div>
-
-          <table class="form" id="ord_linesTable">
-            <thead><tr><th>Product</th><th class="num">Qty</th><th>Unit</th><th></th></tr></thead>
-            <tbody></tbody>
-          </table>
-
-          <div class="field" style="margin-top:12px;">
-            <label>Notes</label>
-            <textarea id="ord_notes" placeholder="Optional"></textarea>
-          </div>
-          <div id="orderDlgStatus" class="mono" style="margin-top:10px; font-size:12.5px; color:var(--steel);"></div>
         </div>
-        <div class="dlg-f">
-          <button type="button" class="btn ghost" data-cancel>Cancel</button>
-          <button type="submit" class="btn" id="orderSubmitBtn">Place order</button>
+        <div class="row">
+          <div class="col field">
+            <label>Order date</label>
+            <input type="date" id="ord_orderDate" value="${todayIso()}">
+          </div>
+          <div class="col field">
+            <label>Placed by *</label>
+            <input type="text" id="ord_placedBy" value="${escapeHtml(info.name || info.email || '')}" placeholder="Your name">
+          </div>
         </div>
-      `;
-      renderDraftLines();
 
-      const customerSel = form.querySelector('#ord_customer');
-      const addProductSel = form.querySelector('#ord_addProduct');
-      enhanceSelect(customerSel);
-      enhanceSelect(addProductSel);
+        <div class="field">
+          <label>Add product</label>
+          <div class="inline">
+            <div class="field" style="flex:2; margin-bottom:0;">
+              <select id="ord_addProduct">
+                <option value="">${orderProducts.length ? 'Search by name or code…' : 'No products set up yet'}</option>
+                ${orderProducts.map(p => `<option value="${escapeHtml(p['Product code'])}">${escapeHtml(p['Product name'])} — ${escapeHtml(p['Product code'])}</option>`).join('')}
+              </select>
+            </div>
+            <div class="field" style="max-width:90px; margin-bottom:0;">
+              <input type="number" step="any" id="ord_addQty" placeholder="Qty">
+            </div>
+            <div class="field" style="max-width:80px; margin-bottom:0;">
+              <select id="ord_addUnit"><option value="kg">kg</option><option value="pc">pc</option></select>
+            </div>
+            <button type="button" class="btn ghost sm" id="ord_addLineBtn">+ Add</button>
+          </div>
+        </div>
 
-      dirtyCheck = () => !!customerSel.value || draftLines.length > 0
-        || !!form.querySelector('#ord_notes').value.trim()
-        || !!form.querySelector('#ord_deliveryDate').value;
+        <table class="form" id="ord_linesTable">
+          <thead><tr><th>Product</th><th class="num">Qty</th><th>Unit</th><th></th></tr></thead>
+          <tbody></tbody>
+        </table>
 
-      form.onclick = (e) => {
-        if (e.target.closest('[data-cancel]')) { guard.guardedClose(); return; }
-        if (e.target.closest('#ord_addLineBtn')) {
-          const code = addProductSel.value;
-          const qtyInput = form.querySelector('#ord_addQty');
-          const qty = parseFloat(qtyInput.value);
-          const unit = form.querySelector('#ord_addUnit').value;
-          if (!code) { setDlgStatus('Pick a product first.', 'error'); return; }
-          if (!qty || qty <= 0) { setDlgStatus('Enter a quantity.', 'error'); return; }
-          if (draftLines.some(l => l.code === code)) { setDlgStatus('That product is already on this order — remove it first to change the quantity.', 'error'); return; }
-          const prod = orderProducts.find(p => p['Product code'] === code);
-          draftLines.push({ code, name: prod ? prod['Product name'] : code, qty, unit });
-          qtyInput.value = '';
-          setDlgStatus('');
-          renderDraftLines();
-          return;
-        }
-        const rmBtn = e.target.closest('[data-remove-line]');
-        if (rmBtn) { draftLines.splice(parseInt(rmBtn.dataset.removeLine, 10), 1); renderDraftLines(); }
-      };
+        <div class="field" style="margin-top:12px;">
+          <label>Notes</label>
+          <textarea id="ord_notes" placeholder="Optional"></textarea>
+        </div>
+        <div id="orderDlgStatus" class="mono" style="margin-top:10px; font-size:12.5px; color:var(--steel);"></div>
+      </div>
+      <div class="dlg-f">
+        <button type="button" class="btn ghost" data-cancel>Cancel</button>
+        <button type="submit" class="btn" id="orderSubmitBtn">Place order</button>
+      </div>
+    `;
+    renderDraftLines();
 
-      form.onsubmit = handleSubmit;
-    }
+    const customerSel = form.querySelector('#ord_customer');
+    const addProductSel = form.querySelector('#ord_addProduct');
+    enhanceSelect(customerSel);
+    enhanceSelect(addProductSel);
 
-    function renderDraftLines() {
-      const tbody = form.querySelector('#ord_linesTable tbody');
-      if (!draftLines.length) {
-        tbody.innerHTML = `<tr><td colspan="4" class="empty" style="padding:12px;">No products added yet.</td></tr>`;
+    dirtyCheck = () => !!customerSel.value || draftLines.length > 0
+      || !!form.querySelector('#ord_notes').value.trim()
+      || !!form.querySelector('#ord_deliveryDate').value;
+
+    form.onclick = (e) => {
+      if (e.target.closest('[data-cancel]')) { guard.guardedClose(); return; }
+      if (e.target.closest('#ord_addLineBtn')) {
+        const code = addProductSel.value;
+        const qtyInput = form.querySelector('#ord_addQty');
+        const qty = parseFloat(qtyInput.value);
+        const unit = form.querySelector('#ord_addUnit').value;
+        if (!code) { setDlgStatus('Pick a product first.', 'error'); return; }
+        if (!qty || qty <= 0) { setDlgStatus('Enter a quantity.', 'error'); return; }
+        if (draftLines.some(l => l.code === code)) { setDlgStatus('That product is already on this order — remove it first to change the quantity.', 'error'); return; }
+        const prod = orderProducts.find(p => p['Product code'] === code);
+        draftLines.push({ code, name: prod ? prod['Product name'] : code, qty, unit });
+        qtyInput.value = '';
+        setDlgStatus('');
+        renderDraftLines();
         return;
       }
-      tbody.innerHTML = draftLines.map((l, i) => `
-        <tr>
-          <td>${escapeHtml(l.name)}</td>
-          <td class="num">${escapeHtml(l.qty)}</td>
-          <td>${escapeHtml(l.unit)}</td>
-          <td><button type="button" class="btn ghost sm" data-remove-line="${i}">Remove</button></td>
-        </tr>
-      `).join('');
+      const rmBtn = e.target.closest('[data-remove-line]');
+      if (rmBtn) { draftLines.splice(parseInt(rmBtn.dataset.removeLine, 10), 1); renderDraftLines(); }
+    };
+
+    form.onsubmit = handleCreateOrderSubmit;
+  }
+
+  function renderDraftLines() {
+    const tbody = form.querySelector('#ord_linesTable tbody');
+    if (!draftLines.length) {
+      tbody.innerHTML = `<tr><td colspan="4" class="empty" style="padding:12px;">No products added yet.</td></tr>`;
+      return;
     }
+    tbody.innerHTML = draftLines.map((l, i) => `
+      <tr>
+        <td>${escapeHtml(l.name)}</td>
+        <td class="num">${escapeHtml(l.qty)}</td>
+        <td>${escapeHtml(l.unit)}</td>
+        <td><button type="button" class="btn ghost sm" data-remove-line="${i}">Remove</button></td>
+      </tr>
+    `).join('');
+  }
 
-    async function handleSubmit(e) {
-      e.preventDefault();
-      const cfg = getStoredConfig();
-      const token = tryResumeSession();
-      if (!token || !cfg.spreadsheetId) { setDlgStatus('Sign in on the Dashboard first.', 'error'); return; }
+  async function handleCreateOrderSubmit(e) {
+    e.preventDefault();
+    const cfg = await ensureAuth(setDlgStatus);
+    if (!cfg) return;
 
-      const customer = form.querySelector('#ord_customer').value;
-      const deliveryDate = form.querySelector('#ord_deliveryDate').value;
-      const orderDate = form.querySelector('#ord_orderDate').value;
-      const placedBy = form.querySelector('#ord_placedBy').value.trim();
-      if (!customer) { setDlgStatus('Pick a customer.', 'error'); return; }
-      if (!deliveryDate) { setDlgStatus('Pick a delivery date.', 'error'); return; }
-      if (!placedBy) { setDlgStatus('Enter who placed this order.', 'error'); return; }
-      if (!draftLines.length) { setDlgStatus('Add at least one product.', 'error'); return; }
+    const customer = form.querySelector('#ord_customer').value;
+    const deliveryDate = form.querySelector('#ord_deliveryDate').value;
+    const orderDate = form.querySelector('#ord_orderDate').value;
+    const placedBy = form.querySelector('#ord_placedBy').value.trim();
+    if (!customer) { setDlgStatus('Pick a customer.', 'error'); return; }
+    if (!deliveryDate) { setDlgStatus('Pick a delivery date.', 'error'); return; }
+    if (!placedBy) { setDlgStatus('Enter who placed this order.', 'error'); return; }
+    if (!draftLines.length) { setDlgStatus('Add at least one product.', 'error'); return; }
 
-      setDlgStatus('Placing order...');
-      try {
-        const notes = form.querySelector('#ord_notes').value.trim();
-        const existingOrders = await sheetsGet(cfg.spreadsheetId, 'Orders!A:A', token);
-        const orderId = nextId(existingOrders.length ? existingOrders : [['ID']], 'ORD');
-        await sheetsAppend(cfg.spreadsheetId, 'Orders!A:G', [orderId, orderDate, customer, deliveryDate, 'New', notes, placedBy], token);
+    setDlgStatus('Placing order...');
+    try {
+      const notes = form.querySelector('#ord_notes').value.trim();
+      const existingOrders = await sheetsGet(cfg.spreadsheetId, 'Orders!A:A', token);
+      const orderId = nextId(existingOrders.length ? existingOrders : [['ID']], 'ORD');
+      await sheetsAppend(cfg.spreadsheetId, 'Orders!A:G', [orderId, orderDate, customer, deliveryDate, 'New', notes, placedBy], token);
 
-        const existingLines = await sheetsGet(cfg.spreadsheetId, 'OrderLines!A:A', token);
-        let base = existingLines.length ? existingLines : [['ID']];
-        const lineRows = draftLines.map(l => {
-          const lineId = nextId(base, 'OL');
-          base = base.concat([[lineId]]);
-          return [lineId, orderId, l.code, l.qty, l.unit, 'New', ''];
-        });
-        await sheetsAppendRows(cfg.spreadsheetId, 'OrderLines!A:G', lineRows, token);
+      const existingLines = await sheetsGet(cfg.spreadsheetId, 'OrderLines!A:A', token);
+      let base = existingLines.length ? existingLines : [['ID']];
+      const lineRows = draftLines.map(l => {
+        const lineId = nextId(base, 'OL');
+        base = base.concat([[lineId]]);
+        return [lineId, orderId, l.code, l.qty, l.unit, 'New', ''];
+      });
+      await sheetsAppendRows(cfg.spreadsheetId, 'OrderLines!A:G', lineRows, token);
 
-        dialogEl.close();
-        if (ordersTable) ordersTable.reload();
-        if (orderLinesTable) orderLinesTable.reload();
-      } catch (err) {
-        setDlgStatus('Error: ' + err.message, 'error');
+      dialogEl.close();
+      setStatus(`Order ${orderId} created.`, 'ok');
+      loadAll();
+    } catch (err) {
+      setDlgStatus('Error: ' + err.message, 'error');
+    }
+  }
+
+  // ---- view order + allocate stock ----
+
+  function openViewDialog(orderId) {
+    const order = ordersData.find(r => r.obj.ID === orderId);
+    if (!order) return;
+    expandedLineId = null;
+    renderViewForm(order);
+    dialogEl.showModal();
+    guard.arm();
+  }
+
+  function renderViewForm(order) {
+    dirtyCheck = null; // every action here (allocate/remove/status) saves immediately — nothing unsaved to lose
+    const lines = orderLinesData.filter(l => l.obj['ORDER ID'] === order.obj.ID);
+
+    form.innerHTML = `
+      <div class="dlg-h">
+        <div>
+          <div class="ttl">${escapeHtml(order.obj.ID)} — ${escapeHtml(order.obj.CUSTOMER)}</div>
+          <div class="subtitle">Placed by ${escapeHtml(order.obj['PLACED BY']) || 'unknown'} on ${escapeHtml(fmtDateShort(order.obj.DATE))} · delivery ${escapeHtml(fmtDateShort(order.obj['DELIVERY DATE'])) || 'not set'}.</div>
+        </div>
+        <button type="button" class="dlg-close" data-cancel aria-label="Close">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+      </div>
+      <div class="dlg-b">
+        <div class="row">
+          <div class="col field" style="max-width:220px;">
+            <label>Status</label>
+            <select id="ord_statusSel">${ORDER_STATUSES.map(s => `<option value="${s}"${(order.obj.STATUS || 'New') === s ? ' selected' : ''}>${s}</option>`).join('')}</select>
+          </div>
+        </div>
+        ${order.obj.NOTES ? `<div class="field"><label>Notes</label><div>${escapeHtml(order.obj.NOTES)}</div></div>` : ''}
+
+        <table class="form" id="ord_viewLinesTable">
+          <thead><tr><th>Product</th><th class="num">Ordered</th><th class="num">Allocated</th><th>Status</th><th></th></tr></thead>
+          <tbody>${lines.length ? lines.map(l => renderLineRow(l)).join('') : `<tr><td colspan="5" class="empty" style="padding:12px;">No items on this order.</td></tr>`}</tbody>
+        </table>
+
+        <div id="orderDlgStatus" class="mono" style="margin-top:10px; font-size:12.5px; color:var(--steel);"></div>
+      </div>
+      <div class="dlg-f">
+        <button type="button" class="btn ghost" data-cancel>Close</button>
+      </div>
+    `;
+
+    form.onsubmit = (e) => e.preventDefault();
+    form.onchange = (e) => {
+      if (e.target.id === 'ord_statusSel') handleStatusChange(order, e.target.value);
+    };
+    form.onclick = (e) => {
+      if (e.target.closest('[data-cancel]')) { guard.guardedClose(); return; }
+      const toggleBtn = e.target.closest('[data-toggle-alloc]');
+      if (toggleBtn) {
+        const lineId = toggleBtn.dataset.toggleAlloc;
+        expandedLineId = expandedLineId === lineId ? null : lineId;
+        renderViewForm(order);
+        return;
       }
-    }
+      const allocBtn = e.target.closest('[data-allocate-line]');
+      if (allocBtn) { handleAllocate(order, allocBtn.dataset.allocateLine); return; }
+      const rmAllocBtn = e.target.closest('[data-remove-alloc]');
+      if (rmAllocBtn) { handleRemoveAllocation(order, rmAllocBtn.dataset.removeAlloc); return; }
+    };
+  }
 
-    document.getElementById('newOrderBtn').addEventListener('click', () => {
-      const cfg = getStoredConfig();
-      const token = tryResumeSession();
-      if (!token || !cfg.spreadsheetId) return;
-      renderForm();
-      dialogEl.showModal();
-      guard.arm();
+  function renderLineRow(line) {
+    const l = line.obj;
+    const allocs = allocationsData.filter(a => a.obj['ORDER LINE ID'] === l.ID);
+    const allocatedQty = allocs.reduce((s, a) => s + (parseFloat(a.obj['QTY ALLOCATED']) || 0), 0);
+    const ordered = parseFloat(l['QTY ORDERED']) || 0;
+    const ready = allocatedQty + 0.0001 >= ordered;
+    const isExpanded = expandedLineId === l.ID;
+    const statusBadge = ready ? '<span class="tag t-ok">Ready</span>' : (allocatedQty > 0 ? '<span class="tag t-warn">Partial</span>' : '<span class="tag t-crit">Unallocated</span>');
+
+    const row = `
+      <tr>
+        <td>${escapeHtml(productName(l['PRODUCT CODE']))}<br><span class="code">${escapeHtml(l['PRODUCT CODE'])}</span></td>
+        <td class="num">${ordered} ${escapeHtml(l.UNIT)}</td>
+        <td class="num">${allocatedQty.toFixed(2)} ${escapeHtml(l.UNIT)}</td>
+        <td>${statusBadge}</td>
+        <td><button type="button" class="btn ghost sm" data-toggle-alloc="${escapeHtml(l.ID)}">${isExpanded ? 'Close' : 'Allocate'}</button></td>
+      </tr>
+    `;
+    if (!isExpanded) return row;
+    return row + `<tr><td colspan="5" style="background:var(--paper); padding:14px;">${renderAllocationPanel(line, allocs)}</td></tr>`;
+  }
+
+  function renderAllocationPanel(line, allocs) {
+    const l = line.obj;
+    const batches = computeAvailableBatches(l['PRODUCT CODE']);
+    const alreadyAllocated = allocs.reduce((s, a) => s + (parseFloat(a.obj['QTY ALLOCATED']) || 0), 0);
+    const outstanding = Math.max((parseFloat(l['QTY ORDERED']) || 0) - alreadyAllocated, 0);
+
+    const existingHtml = allocs.length ? `
+      <table class="form" style="margin-bottom:10px;">
+        <thead><tr><th>Lot</th><th>Best before</th><th class="num">Qty</th><th></th></tr></thead>
+        <tbody>${allocs.map(a => `
+          <tr>
+            <td class="code">${escapeHtml(a.obj['BATCH/LOT NUMBER'])}</td>
+            <td>${escapeHtml(fmtDateShort(deliveryBbeFor(l['PRODUCT CODE'], a.obj['BATCH/LOT NUMBER']))) || '—'}</td>
+            <td class="num">${escapeHtml(a.obj['QTY ALLOCATED'])} ${escapeHtml(l.UNIT)}</td>
+            <td><button type="button" class="btn ghost sm" data-remove-alloc="${escapeHtml(a.obj.ID)}">Remove</button></td>
+          </tr>
+        `).join('')}</tbody>
+      </table>
+    ` : '';
+
+    const pickerHtml = batches.length ? `
+      <div class="inline">
+        <div class="field" style="flex:2; margin-bottom:0;">
+          <select data-line-batch="${escapeHtml(l.ID)}">
+            ${batches.map((b, i) => `<option value="${escapeHtml(b.batch)}"${i === 0 ? ' selected' : ''}>${escapeHtml(b.batch)} — ${b.remaining.toFixed(2)} ${escapeHtml(b.unit)} left, BBE ${escapeHtml(fmtDateShort(b.bbe)) || 'unknown'}${i === 0 ? ' (earliest — suggested)' : ''}</option>`).join('')}
+          </select>
+        </div>
+        <div class="field" style="max-width:100px; margin-bottom:0;">
+          <input type="number" step="any" data-line-qty="${escapeHtml(l.ID)}" placeholder="Qty" value="${Math.min(outstanding, batches[0].remaining).toFixed(2)}">
+        </div>
+        <button type="button" class="btn ghost sm" data-allocate-line="${escapeHtml(l.ID)}">+ Allocate</button>
+      </div>
+    ` : `<p class="muted" style="font-size:13px;">No stock available for this product yet.</p>`;
+
+    return `
+      <div style="font-family:'Roboto Mono',monospace; font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:var(--steel); margin-bottom:8px;">Allocate stock — ${escapeHtml(productName(l['PRODUCT CODE']))}</div>
+      ${existingHtml}
+      ${pickerHtml}
+    `;
+  }
+
+  // Available lots for a product: what's been delivered minus what's
+  // already allocated to ANY order line — stock is a shared pool, FEFO
+  // (earliest best-before first) sorted, same computation as the Dashboard
+  // and Stock pages.
+  function computeAvailableBatches(productCode) {
+    const batchMap = {};
+    deliveriesData.forEach(({ obj: d }) => {
+      if (d['PRODUCT CODE'] !== productCode) return;
+      const key = d['BATCH/LOT NUMBER'];
+      if (!batchMap[key]) batchMap[key] = { batch: key, bbe: d['BEST BEFORE DATE'], unit: d.UNIT || 'kg', remaining: 0 };
+      batchMap[key].remaining += parseFloat(d['QTY RECEIVED']) || 0;
+      if (d['BEST BEFORE DATE'] && (!batchMap[key].bbe || d['BEST BEFORE DATE'] < batchMap[key].bbe)) batchMap[key].bbe = d['BEST BEFORE DATE'];
     });
+    allocationsData.forEach(({ obj: a }) => {
+      if (a['PRODUCT CODE'] !== productCode) return;
+      const key = a['BATCH/LOT NUMBER'];
+      if (batchMap[key]) batchMap[key].remaining -= parseFloat(a['QTY ALLOCATED']) || 0;
+    });
+    return Object.values(batchMap)
+      .filter(b => b.remaining > 0.0001)
+      .sort((a, b) => (a.bbe || '9999').localeCompare(b.bbe || '9999'));
   }
 
-  // FEFO allocation helper: once you pick an order line, the Product code
-  // field is derived and locked (an allocation must match its order line's
-  // product — it's never picked independently), and Batch/lot is narrowed
-  // to just that product's in-stock batches, sorted earliest-best-before
-  // first, each annotated with how much of it is actually left. Qty
-  // allocated is pre-filled with whatever's still outstanding on the line,
-  // capped to what the suggested batch has — editable, just a starting point.
-  function setupAllocationFefoHelper() {
-    const productSel = document.querySelector('#Allocations_f_PRODUCT_CODE');
-    const batchSel = document.querySelector('#Allocations_f_BATCH_LOT_NUMBER');
-    const orderLineSel = document.querySelector('#Allocations_f_ORDER_LINE_ID');
-    const qtySel = document.querySelector('#Allocations_f_QTY_ALLOCATED');
-    if (!productSel || !batchSel || !orderLineSel || !qtySel) return;
+  function deliveryBbeFor(productCode, batch) {
+    const d = deliveriesData.find(r => r.obj['PRODUCT CODE'] === productCode && r.obj['BATCH/LOT NUMBER'] === batch);
+    return d ? d.obj['BEST BEFORE DATE'] : '';
+  }
 
-    productSel.disabled = true; // always derived from the order line, never picked directly
+  async function handleAllocate(order, lineId) {
+    const line = orderLinesData.find(l => l.obj.ID === lineId);
+    if (!line) return;
+    const batchSel = form.querySelector(`select[data-line-batch="${CSS.escape(lineId)}"]`);
+    const qtyInput = form.querySelector(`input[data-line-qty="${CSS.escape(lineId)}"]`);
+    const batch = batchSel ? batchSel.value : '';
+    const qty = qtyInput ? parseFloat(qtyInput.value) : NaN;
+    if (!batch) { setDlgStatus('Pick a lot first.', 'error'); return; }
+    if (!qty || qty <= 0) { setDlgStatus('Enter a quantity.', 'error'); return; }
 
-    function toObjs(rows) {
-      if (!rows.length) return [];
-      const [head, ...rest] = rows;
-      return rest.map(r => { const o = {}; head.forEach((h, i) => { o[h] = r[i] ?? ''; }); return o; });
+    const cfg = await ensureAuth(setDlgStatus);
+    if (!cfg) return;
+    setDlgStatus('Allocating...');
+    try {
+      const existing = await sheetsGet(cfg.spreadsheetId, 'Allocations!A:A', token);
+      const id = nextId(existing.length ? existing : [['ID']], 'ALO');
+      await sheetsAppend(cfg.spreadsheetId, 'Allocations!A:F', [id, lineId, line.obj['PRODUCT CODE'], batch, qty, todayIso()], token);
+      await refreshAfterAllocationChange(order.obj.ID);
+    } catch (err) {
+      setDlgStatus('Error: ' + err.message, 'error');
     }
+  }
 
-    async function onOrderLineChange() {
-      const lineId = orderLineSel.value;
-      if (!lineId) {
-        productSel.value = '';
-        productSel.dispatchEvent(new Event('change'));
-        batchSel.innerHTML = '<option value="">Pick an order line first</option>';
-        return;
-      }
-      batchSel.innerHTML = '<option value="">Loading…</option>';
+  async function handleRemoveAllocation(order, allocId) {
+    if (!confirm('Remove this allocation? This can\'t be undone.')) return;
+    const alloc = allocationsData.find(a => a.obj.ID === allocId);
+    if (!alloc) return;
+    const cfg = await ensureAuth(setDlgStatus);
+    if (!cfg) return;
+    setDlgStatus('Removing...');
+    try {
+      const sid = await ensureSheetId(cfg, 'Allocations');
+      if (sid === null) throw new Error('Allocations tab not found — run Setup first.');
+      await sheetsBatchUpdate(cfg.spreadsheetId, [{
+        deleteDimension: { range: { sheetId: sid, dimension: 'ROWS', startIndex: alloc.rowNumber - 1, endIndex: alloc.rowNumber } }
+      }], token);
+      await refreshAfterAllocationChange(order.obj.ID);
+    } catch (err) {
+      setDlgStatus('Error: ' + err.message, 'error');
+    }
+  }
+
+  // Re-fetches everything (simplest way to keep the shared stock pool and
+  // every line's allocated total consistent), nudges the order's own STATUS
+  // between New <-> Allocated if that's newly warranted, then re-renders
+  // the still-open dialog for this same order.
+  async function refreshAfterAllocationChange(orderId) {
+    await loadAll();
+    await maybeAutoUpdateStatus(orderId);
+    const order = ordersData.find(r => r.obj.ID === orderId);
+    if (order) { renderViewForm(order); setDlgStatus('Updated.', 'ok'); }
+  }
+
+  async function maybeAutoUpdateStatus(orderId) {
+    const order = ordersData.find(r => r.obj.ID === orderId);
+    if (!order) return;
+    const status = order.obj.STATUS || 'New';
+    if (status !== 'New' && status !== 'Allocated') return; // never touch later manual stages (Picked/Cut/Packed/Dispatched)
+    const lines = orderLinesData.filter(l => l.obj['ORDER ID'] === orderId);
+    if (!lines.length) return;
+    const fullyAllocated = lines.every(l => {
+      const ordered = parseFloat(l.obj['QTY ORDERED']) || 0;
+      const allocated = allocationsData.filter(a => a.obj['ORDER LINE ID'] === l.obj.ID).reduce((s, a) => s + (parseFloat(a.obj['QTY ALLOCATED']) || 0), 0);
+      return allocated + 0.0001 >= ordered;
+    });
+    const newStatus = fullyAllocated ? 'Allocated' : 'New';
+    if (newStatus === status) return;
+    try {
       const cfg = getStoredConfig();
-      const token = tryResumeSession();
-      if (!token || !cfg.spreadsheetId) return;
-      try {
-        const [lineRows, deliveryRows, allocRows] = await Promise.all([
-          sheetsGet(cfg.spreadsheetId, 'OrderLines!A:Z', token),
-          sheetsGet(cfg.spreadsheetId, 'Deliveries!A:Z', token),
-          sheetsGet(cfg.spreadsheetId, 'Allocations!A:Z', token)
-        ]);
-        const line = toObjs(lineRows).find(l => l.ID === lineId);
-        if (!line) { batchSel.innerHTML = '<option value="">Order line not found</option>'; return; }
-
-        const productCode = line['PRODUCT CODE'];
-        productSel.value = productCode;
-        productSel.dispatchEvent(new Event('change')); // resyncs the searchable-select trigger label — see js/searchable-select.js
-
-        const allocs = toObjs(allocRows);
-        const alreadyOnLine = allocs
-          .filter(a => a['ORDER LINE ID'] === lineId)
-          .reduce((s, a) => s + (parseFloat(a['QTY ALLOCATED']) || 0), 0);
-        const outstanding = Math.max((parseFloat(line['QTY ORDERED']) || 0) - alreadyOnLine, 0);
-
-        const batches = toObjs(deliveryRows)
-          .filter(d => d['PRODUCT CODE'] === productCode)
-          .map(d => {
-            const allocated = allocs
-              .filter(a => a['PRODUCT CODE'] === productCode && a['BATCH/LOT NUMBER'] === d['BATCH/LOT NUMBER'])
-              .reduce((s, a) => s + (parseFloat(a['QTY ALLOCATED']) || 0), 0);
-            const remaining = (parseFloat(d['QTY RECEIVED']) || 0) - allocated;
-            return { batch: d['BATCH/LOT NUMBER'], bbe: d['BEST BEFORE DATE'], remaining, unit: d.UNIT };
-          })
-          .filter(b => b.remaining > 0.0001)
-          .sort((a, b) => (a.bbe || '9999').localeCompare(b.bbe || '9999'));
-
-        if (!batches.length) {
-          batchSel.innerHTML = `<option value="">No stock available for ${escapeHtml(productCode)}</option>`;
-          return;
-        }
-        batchSel.innerHTML = batches.map((b, i) =>
-          `<option value="${escapeHtml(b.batch)}"${i === 0 ? ' selected' : ''}>${escapeHtml(b.batch)} — ${b.remaining.toFixed(2)} ${escapeHtml(b.unit)} left, BBE ${escapeHtml(b.bbe) || 'unknown'}${i === 0 ? ' (earliest — suggested)' : ''}</option>`
-        ).join('');
-        qtySel.value = Math.min(outstanding, batches[0].remaining).toFixed(2);
-      } catch (err) {
-        batchSel.innerHTML = `<option value="">Error: ${escapeHtml(err.message)}</option>`;
-      }
-    }
-
-    orderLineSel.addEventListener('change', onOrderLineChange);
+      await sheetsUpdateRange(cfg.spreadsheetId, `Orders!E${order.rowNumber}:E${order.rowNumber}`, [[newStatus]], token, 'USER_ENTERED');
+      order.obj.STATUS = newStatus;
+      renderTable();
+    } catch (err) { /* best-effort — the Status dropdown in the dialog still works manually */ }
   }
+
+  async function handleStatusChange(order, newStatus) {
+    const cfg = await ensureAuth(setDlgStatus);
+    if (!cfg) return;
+    setDlgStatus('Updating status...');
+    try {
+      await sheetsUpdateRange(cfg.spreadsheetId, `Orders!E${order.rowNumber}:E${order.rowNumber}`, [[newStatus]], token, 'USER_ENTERED');
+      order.obj.STATUS = newStatus;
+      renderTable();
+      setDlgStatus('Status updated.', 'ok');
+    } catch (err) {
+      setDlgStatus('Error: ' + err.message, 'error');
+    }
+  }
+
+  // ---- wiring ----
+
+  document.getElementById('newOrderBtn').addEventListener('click', () => {
+    if (!token) return;
+    renderNewOrderForm();
+    dialogEl.showModal();
+    guard.arm();
+  });
+  document.getElementById('reloadBtn').addEventListener('click', loadAll);
+
+  window.addEventListener('load', loadAll);
 </script>
 </body>
 </html>

@@ -42,7 +42,7 @@
 <main>
   <div class="no-print">
     <h2>Picking, cutting &amp; packing lists</h2>
-    <p class="sub">Generated from Orders + Order lines + Allocations + Products. One set of lists per order that isn't Dispatched yet — allocate stock to an order on the <a href="orders.html">Orders</a> page first, then it shows up here.</p>
+    <p class="sub">Every item that needs preparing this week, across all orders that aren't Dispatched yet — grouped by product and lot, so it's clear which customer gets which batch. Allocate stock to an order on the <a href="orders.html">Orders</a> page first, then it shows up here.</p>
   </div>
 
   <div id="signedOutNotice" class="note no-print" style="display:none;">
@@ -57,7 +57,7 @@
         <input type="checkbox" id="showAllToggle" style="width:auto;"> Show dispatched orders too
       </label>
     </div>
-    <div id="ordersOut"></div>
+    <div id="listsOut"></div>
     <div id="status" class="mono no-print" style="margin-top:10px; font-size:12.5px; color:var(--steel);"></div>
   </div>
 </main>
@@ -121,137 +121,147 @@
       });
 
       const showAll = document.getElementById('showAllToggle').checked;
-      const relevantOrders = orders
-        .filter(o => showAll || o.STATUS !== 'Dispatched')
-        .sort((a, b) => (a.DATE || '').localeCompare(b.DATE || ''));
+      const relevantOrders = orders.filter(o => showAll || o.STATUS !== 'Dispatched');
 
-      renderOrders(relevantOrders, lines, allocs, productByCode, deliveryByKey);
+      renderLists(relevantOrders, lines, allocs, productByCode, deliveryByKey);
       setStatus(`Loaded ${relevantOrders.length} order(s).`, 'ok');
     } catch (err) {
       setStatus('Error loading: ' + err.message, 'error');
     }
   }
 
-  function statusTag(s) {
-    const kind = s === 'Dispatched' ? 't-ok' : s === 'New' ? 't-amb' : 't-chill';
-    return `<span class="tag ${kind}">${escapeHtml(s || 'New')}</span>`;
+  function fmtDateShort(iso) {
+    if (!iso) return '';
+    const d = new Date(iso + 'T00:00:00');
+    if (isNaN(d)) return iso;
+    return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
   }
 
-  function renderOrders(orders, lines, allocs, productByCode, deliveryByKey) {
-    const out = document.getElementById('ordersOut');
+  // Item-centric, not order-centric: a picker doesn't care which order a
+  // line belongs to, they care what to cut/pick and who it's going to.
+  // Every relevant order's lines are flattened into three tables — needs
+  // allocating, needs cutting, ready to pack — each grouped by product (and
+  // by lot for packing) so the same batch's customers sit together.
+  function renderLists(orders, lines, allocs, productByCode, deliveryByKey) {
+    const out = document.getElementById('listsOut');
     if (!orders.length) {
       out.innerHTML = `<div class="empty" style="padding:24px;">No open orders. Create one on the <a href="orders.html">Orders</a> page.</div>`;
       return;
     }
 
-    out.innerHTML = orders.map(order => {
+    const shortRows = [];
+    const cutRows = [];
+    const packRows = [];
+
+    orders.forEach(order => {
       const orderLines = lines.filter(l => l['ORDER ID'] === order.ID);
-      const lineIds = new Set(orderLines.map(l => l.ID));
-      const orderAllocs = allocs.filter(a => lineIds.has(a['ORDER LINE ID']));
+      orderLines.forEach(l => {
+        const prod = productByCode[l['PRODUCT CODE']];
+        const ordered = parseFloat(l['QTY ORDERED']) || 0;
+        const common = { customer: order.CUSTOMER, deliveryDate: order['DELIVERY DATE'], orderId: order.ID };
 
-      // Picking rows: one per allocated batch, with the matching delivery's
-      // best-before date when we can find it (only meaningful for products
-      // that were delivered directly under their own code/batch).
-      const pickRows = orderAllocs.map(a => {
-        const del = deliveryByKey[`${a['PRODUCT CODE']} ${a['BATCH/LOT NUMBER']}`];
-        const prod = productByCode[a['PRODUCT CODE']];
-        return {
-          code: a['PRODUCT CODE'],
-          name: prod ? prod['Product name'] : '',
-          batch: a['BATCH/LOT NUMBER'],
-          qty: parseFloat(a['QTY ALLOCATED']) || 0,
-          unit: del ? del.UNIT : '',
-          bbe: del ? del['BEST BEFORE DATE'] : ''
-        };
-      });
+        // Cut-to-order products aren't allocated a lot of their own — they're
+        // cut from a parent product's stock, so they only ever show up here.
+        if (prod && prod['Cut from (code)']) {
+          const parent = productByCode[prod['Cut from (code)']];
+          cutRows.push({
+            ...common,
+            code: prod['Product code'], name: prod['Product name'],
+            qty: ordered, unit: l.UNIT,
+            parentCode: prod['Cut from (code)'],
+            parentName: parent ? parent['Product name'] : prod['Cut from (code)'],
+            cutLife: prod['Cut shelf life (days)']
+          });
+          return;
+        }
 
-      // Cutting rows: order lines for a product that has a CUT FROM parent —
-      // these can't just be picked whole, they need cutting first. We flag
-      // what to cut and from which parent product; the actual parent batch
-      // is chosen at cut time from whatever's available on the Stock page.
-      const cutRows = orderLines
-        .map(l => ({ line: l, prod: productByCode[l['PRODUCT CODE']] }))
-        .filter(x => x.prod && x.prod['Cut from (code)'])
-        .map(x => {
-          const parent = productByCode[x.prod['Cut from (code)']];
-          return {
-            code: x.prod['Product code'],
-            name: x.prod['Product name'],
-            qty: parseFloat(x.line['QTY ORDERED']) || 0,
-            unit: x.line.UNIT,
-            parentCode: x.prod['Cut from (code)'],
-            parentName: parent ? parent['Product name'] : x.prod['Cut from (code)'],
-            cutLife: x.prod['Cut shelf life (days)']
-          };
-        });
-
-      // Packing rows: every order line, ordered vs allocated, flagged short.
-      const packRows = orderLines.map(l => {
         const lineAllocs = allocs.filter(a => a['ORDER LINE ID'] === l.ID);
         const allocated = lineAllocs.reduce((s, a) => s + (parseFloat(a['QTY ALLOCATED']) || 0), 0);
-        const ordered = parseFloat(l['QTY ORDERED']) || 0;
-        const prod = productByCode[l['PRODUCT CODE']];
-        return {
-          code: l['PRODUCT CODE'],
-          name: prod ? prod['Product name'] : '',
-          ordered, allocated, unit: l.UNIT,
-          short: allocated + 0.0001 < ordered
-        };
+
+        lineAllocs.forEach(a => {
+          const del = deliveryByKey[`${a['PRODUCT CODE']} ${a['BATCH/LOT NUMBER']}`];
+          packRows.push({
+            ...common,
+            code: a['PRODUCT CODE'], name: prod ? prod['Product name'] : a['PRODUCT CODE'],
+            batch: a['BATCH/LOT NUMBER'],
+            qty: parseFloat(a['QTY ALLOCATED']) || 0,
+            unit: del ? del.UNIT : l.UNIT,
+            bbe: del ? del['BEST BEFORE DATE'] : ''
+          });
+        });
+
+        if (allocated + 0.0001 < ordered) {
+          shortRows.push({
+            ...common,
+            code: l['PRODUCT CODE'], name: prod ? prod['Product name'] : l['PRODUCT CODE'],
+            ordered, allocated, unit: l.UNIT
+          });
+        }
       });
+    });
 
-      return `
-        <div class="panel" style="margin-bottom:28px;">
-          <div class="panel-h">
-            <h3 style="text-transform:none; letter-spacing:normal; font-size:16px; color:var(--ink); font-weight:600; font-family:Archivo,sans-serif;">
-              Order ${escapeHtml(order.ID)} — ${escapeHtml(order.CUSTOMER)}
-            </h3>
-            ${statusTag(order.STATUS)}
-            <span class="muted" style="font-size:12.5px; margin-left:auto;">Order date ${escapeHtml(order.DATE)}${order['DELIVERY DATE'] ? ' · Delivery ' + escapeHtml(order['DELIVERY DATE']) : ''}</span>
-          </div>
-          <div class="panel-b">
+    cutRows.sort((a, b) => a.code.localeCompare(b.code) || (a.deliveryDate || '9999').localeCompare(b.deliveryDate || '9999'));
+    packRows.sort((a, b) => a.code.localeCompare(b.code) || (a.batch || '').localeCompare(b.batch || '') || (a.deliveryDate || '9999').localeCompare(b.deliveryDate || '9999'));
+    shortRows.sort((a, b) => (a.deliveryDate || '9999').localeCompare(b.deliveryDate || '9999'));
 
-            <h4 style="font-family:'Roboto Mono',monospace; font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:var(--steel); margin-bottom:8px;">Picking list</h4>
-            ${pickRows.length ? `
-              <div class="scroll" style="overflow-x:auto; margin-bottom:18px;">
-                <table><thead><tr><th>Product</th><th>Batch / lot</th><th>Best before</th><th class="num">Qty</th></tr></thead>
-                <tbody>${pickRows.map(r => `
-                  <tr><td><strong>${escapeHtml(r.code)}</strong><br><span class="muted" style="font-size:12px;">${escapeHtml(r.name)}</span></td>
-                  <td class="code">${escapeHtml(r.batch)}</td>
-                  <td>${escapeHtml(r.bbe) || '—'}</td>
-                  <td class="num">${r.qty.toFixed(2)} ${escapeHtml(r.unit)}</td></tr>
-                `).join('')}</tbody></table>
-              </div>
-            ` : `<p class="muted" style="font-size:13px; margin-bottom:18px;">Nothing allocated to a batch yet.</p>`}
+    const orderLink = (id) => `<a href="orders.html?open=${encodeURIComponent(id)}">${escapeHtml(id)}</a>`;
 
-            ${cutRows.length ? `
-              <h4 style="font-family:'Roboto Mono',monospace; font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:var(--steel); margin-bottom:8px;">Cutting list</h4>
-              <div class="scroll" style="overflow-x:auto; margin-bottom:18px;">
-                <table><thead><tr><th>Cut</th><th>From</th><th class="num">Qty needed</th><th>Life after cut</th></tr></thead>
-                <tbody>${cutRows.map(r => `
-                  <tr><td><strong>${escapeHtml(r.code)}</strong><br><span class="muted" style="font-size:12px;">${escapeHtml(r.name)}</span></td>
-                  <td>${escapeHtml(r.parentCode)} <span class="muted">— ${escapeHtml(r.parentName)}</span></td>
-                  <td class="num">${r.qty.toFixed(2)} ${escapeHtml(r.unit)}</td>
-                  <td>${r.cutLife ? r.cutLife + ' day(s)' : '—'}</td></tr>
-                `).join('')}</tbody></table>
-              </div>
-            ` : ''}
-
-            <h4 style="font-family:'Roboto Mono',monospace; font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:var(--steel); margin-bottom:8px;">Packing list</h4>
-            <div class="scroll" style="overflow-x:auto;">
-              <table><thead><tr><th>Product</th><th class="num">Ordered</th><th class="num">Allocated</th><th>Status</th></tr></thead>
-              <tbody>${packRows.map(r => `
-                <tr style="${r.short ? 'background:var(--warn-bg);' : ''}">
-                <td><strong>${escapeHtml(r.code)}</strong><br><span class="muted" style="font-size:12px;">${escapeHtml(r.name)}</span></td>
-                <td class="num">${r.ordered.toFixed(2)} ${escapeHtml(r.unit)}</td>
-                <td class="num">${r.allocated.toFixed(2)} ${escapeHtml(r.unit)}</td>
-                <td>${r.short ? '<span class="tag t-warn">Short</span>' : '<span class="tag t-ok">Ready</span>'}</td></tr>
-              `).join('')}</tbody></table>
-            </div>
-
-          </div>
+    out.innerHTML = `
+      ${shortRows.length ? `
+        <div class="note no-print" style="margin-bottom:24px;">
+          <strong>${shortRows.length} item(s) still need stock allocated</strong> before they can go on the packing list — head to <a href="orders.html" style="color:inherit; text-decoration:underline;">Orders</a> to allocate them.
         </div>
-      `;
-    }).join('');
+        <div class="scroll no-print" style="overflow-x:auto; margin-bottom:28px;">
+          <table><thead><tr><th>Product</th><th class="num">Ordered</th><th class="num">Allocated</th><th>Customer</th><th>Delivery</th><th>Order</th></tr></thead>
+          <tbody>${shortRows.map(r => `
+            <tr style="background:var(--warn-bg);">
+              <td><strong>${escapeHtml(r.code)}</strong><br><span class="muted" style="font-size:12px;">${escapeHtml(r.name)}</span></td>
+              <td class="num">${r.ordered.toFixed(2)} ${escapeHtml(r.unit)}</td>
+              <td class="num">${r.allocated.toFixed(2)} ${escapeHtml(r.unit)}</td>
+              <td>${escapeHtml(r.customer)}</td>
+              <td>${escapeHtml(fmtDateShort(r.deliveryDate)) || '—'}</td>
+              <td>${orderLink(r.orderId)}</td>
+            </tr>
+          `).join('')}</tbody></table>
+        </div>
+      ` : ''}
+
+      ${cutRows.length ? `
+        <h3 style="font-size:16px; margin-bottom:10px;">Cutting list</h3>
+        <div class="scroll" style="overflow-x:auto; margin-bottom:28px;">
+          <table><thead><tr><th>Cut</th><th>From</th><th class="num">Qty needed</th><th>Life after cut</th><th>Customer</th><th>Delivery</th><th class="no-print">Order</th></tr></thead>
+          <tbody>${cutRows.map(r => `
+            <tr>
+              <td><strong>${escapeHtml(r.code)}</strong><br><span class="muted" style="font-size:12px;">${escapeHtml(r.name)}</span></td>
+              <td>${escapeHtml(r.parentCode)} <span class="muted">— ${escapeHtml(r.parentName)}</span></td>
+              <td class="num">${r.qty.toFixed(2)} ${escapeHtml(r.unit)}</td>
+              <td>${r.cutLife ? r.cutLife + ' day(s)' : '—'}</td>
+              <td>${escapeHtml(r.customer)}</td>
+              <td>${escapeHtml(fmtDateShort(r.deliveryDate)) || '—'}</td>
+              <td class="no-print">${orderLink(r.orderId)}</td>
+            </tr>
+          `).join('')}</tbody></table>
+        </div>
+      ` : ''}
+
+      <h3 style="font-size:16px; margin-bottom:10px;">Packing list</h3>
+      ${packRows.length ? `
+        <div class="scroll" style="overflow-x:auto;">
+          <table><thead><tr><th>Product</th><th>Lot / batch</th><th>Best before</th><th class="num">Qty</th><th>Customer</th><th>Delivery</th><th class="no-print">Order</th></tr></thead>
+          <tbody>${packRows.map(r => `
+            <tr>
+              <td><strong>${escapeHtml(r.code)}</strong><br><span class="muted" style="font-size:12px;">${escapeHtml(r.name)}</span></td>
+              <td class="code">${escapeHtml(r.batch)}</td>
+              <td>${escapeHtml(fmtDateShort(r.bbe)) || '—'}</td>
+              <td class="num">${r.qty.toFixed(2)} ${escapeHtml(r.unit)}</td>
+              <td>${escapeHtml(r.customer)}</td>
+              <td>${escapeHtml(fmtDateShort(r.deliveryDate)) || '—'}</td>
+              <td class="no-print">${orderLink(r.orderId)}</td>
+            </tr>
+          `).join('')}</tbody></table>
+        </div>
+      ` : `<p class="muted" style="font-size:13px;">Nothing allocated to a lot yet.</p>`}
+    `;
   }
 
   document.getElementById('reloadBtn').addEventListener('click', loadLists);

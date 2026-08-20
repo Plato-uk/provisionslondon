@@ -98,19 +98,25 @@
   //                a specific lot later, and QTY RECEIVED is the quantity.
   //                PO ID traces a row back to the purchase order it was
   //                received against, when there is one.
-  //   Orders / OrderLines — a customer order and its line items. Orders are
-  //                created via the "+ Add order" wizard on orders.html
-  //                (pick customer + delivery date, search products by name
-  //                or code, confirm), which writes both tabs together and
-  //                records PLACED BY; the tables on that page are then used
-  //                to view/edit them (status progression etc.) afterwards.
+  //   Orders / OrderLines — a customer order and its line items, both
+  //                created together via the "+ Add order" wizard on
+  //                orders.html (pick customer + delivery date, search
+  //                products by name or code, confirm — also records PLACED
+  //                BY). Clicking an order afterwards opens the same page's
+  //                view dialog, which is also where STATUS is progressed
+  //                and where stock gets allocated per line (see next).
   //   Allocations — links an order line to a specific delivered batch/lot
-  //                and quantity. This is the stock-OUT event. Real-time
-  //                availability = SUM(Deliveries.qty) - SUM(Allocations.qty)
-  //                per product/batch — computed, not stored, so concurrent
-  //                edits from the warehouse team can't corrupt a running
-  //                total. Picking/cutting/packing lists are generated from
-  //                Orders + OrderLines + Allocations + Products.
+  //                and quantity. This is the stock-OUT event, done from
+  //                orders.html's order-view dialog: each line shows its
+  //                FEFO-sorted available lots (computed from Deliveries
+  //                minus existing Allocations for that product) to pick
+  //                from. Real-time availability = SUM(Deliveries.qty) -
+  //                SUM(Allocations.qty) per product/batch — computed, not
+  //                stored, so concurrent edits from the warehouse team
+  //                can't corrupt a running total. Picking/cutting/packing
+  //                lists (lists.html) are generated from Orders +
+  //                OrderLines + Allocations + Products, flattened by
+  //                product/lot rather than grouped by order.
   //   StockTakes / StockTakeLines — a physical count session (see
   //                stock-take.html). Starting one snapshots every Active
   //                product into StockTakeLines with its computed on-hand
