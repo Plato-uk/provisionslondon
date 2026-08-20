@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=Roboto+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/style.css?v=12">
+<link rel="stylesheet" href="css/style.css?v=13">
 <link rel="icon" type="image/png" href="img/favicon.png">
 </head>
 <body>
@@ -147,7 +147,7 @@
       mount: '#productsMount',
       title: 'Products',
       tab: 'Products',
-      headers: ['Product code','Product name','Category','Default supplier','Producer','Storage','Ordering unit','Units per case','Pricing basis','Nominal weight (kg)','Cost price £','Landed cost £','GP at list','Tolerance band (%)','Cut from (code)','Cut shelf life (days)','Part-cut shelf life (days)','Target pack weight (kg)','Xero item code','Xero account code','VAT rate','Active','Sellable','Notes','Photo URL'],
+      headers: ['Product code','Product name','Category','Default supplier','Producer','Storage','Ordering unit','Units per case','Pricing basis','Nominal weight (kg)','Cost price £','Landed cost £','GP at list','Tolerance band (%)','Cut from (code)','Cut shelf life (days)','Part-cut shelf life (days)','Target pack weight (kg)','Xero item code','Xero account code','VAT rate','Active','Sellable','Notes','Photo URL','Reorder threshold'],
       autoId: null,
       fields: [
         { key: 'Product code', label: 'Product code', type: 'text', required: true, placeholder: 'e.g. CCS050' },
@@ -174,7 +174,8 @@
         { key: 'Active', label: 'Active', type: 'checkbox', trueValue: 'Yes', falseValue: 'No' },
         { key: 'Sellable', label: 'Sellable', type: 'checkbox', trueValue: 'Yes', falseValue: 'No' },
         { key: 'Notes', label: 'Notes', type: 'textarea' },
-        { key: 'Photo URL', label: 'Photo', type: 'image', placeholder: 'https://... — usually set via Bulk upload photos' }
+        { key: 'Photo URL', label: 'Photo', type: 'image', placeholder: 'https://... — usually set via Bulk upload photos' },
+        { key: 'Reorder threshold', label: 'Reorder threshold', type: 'number', placeholder: 'On-hand qty below this is flagged as low stock' }
       ],
       inlineEdit: true,
       catalogue: {

@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=Roboto+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/style.css?v=12">
+<link rel="stylesheet" href="css/style.css?v=13">
 <link rel="icon" type="image/png" href="img/favicon.png">
 </head>
 <body>
@@ -61,57 +61,57 @@
     </div>
   </div>
 
-  <div class="panel" id="upcomingCard" style="display:none;">
-    <div class="panel-h" style="border:none; background:none; padding:0 0 8px;">
-      <h3 style="text-transform:none; letter-spacing:normal; font-size:15px; color:var(--ink); font-weight:600;">Upcoming deliveries</h3>
+  <div id="dashCard" style="display:none;">
+
+    <!-- This week's snapshot — week-scoped; the switcher only affects this band -->
+    <div class="section-gap week-band">
+      <div class="week-bar">
+        <button type="button" class="wk-btn" id="wkPrev" aria-label="Previous week"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg></button>
+        <div><span class="kicker" id="wkKicker">This week</span></div>
+        <button type="button" class="wk-btn" id="wkNext" aria-label="Next week"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></button>
+        <a href="#" class="wk-jump" id="wkJump" style="display:none;">Jump to this week <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></a>
+      </div>
+      <h2 style="font-size:22px; margin-bottom:16px;" id="wkHeading">This week's snapshot</h2>
+      <div class="row" id="wkStats" style="margin-bottom:2px;"></div>
     </div>
-    <div id="upcomingList"></div>
-  </div>
 
-  <h2 style="margin-top:28px;">Tools</h2>
-  <div class="grid">
-    <a class="card" href="setup.html">
-      <div class="nm">Sheet Setup</div>
-      <div class="meta" style="font-family:Archivo,system-ui,sans-serif; font-size:12.5px; color:var(--steel); text-transform:none; letter-spacing:normal;">Creates the required tabs and header rows in your spreadsheet automatically. Run this first.</div>
-    </a>
-    <a class="card" href="products.html">
-      <div class="nm">Products</div>
-      <div class="meta" style="font-family:Archivo,system-ui,sans-serif; font-size:12.5px; color:var(--steel); text-transform:none; letter-spacing:normal;">Item master and per-customer-tier pricing.</div>
-    </a>
-    <a class="card" href="suppliers.html">
-      <div class="nm">Suppliers</div>
-      <div class="meta" style="font-family:Archivo,system-ui,sans-serif; font-size:12.5px; color:var(--steel); text-transform:none; letter-spacing:normal;">Who deliveries come from.</div>
-    </a>
-    <a class="card" href="customers.html">
-      <div class="nm">Customers</div>
-      <div class="meta" style="font-family:Archivo,system-ui,sans-serif; font-size:12.5px; color:var(--steel); text-transform:none; letter-spacing:normal;">Who orders go to, and their price tier.</div>
-    </a>
-    <a class="card" href="purchase-orders.html">
-      <div class="nm">Purchase Orders</div>
-      <div class="meta" style="font-family:Archivo,system-ui,sans-serif; font-size:12.5px; color:var(--steel); text-transform:none; letter-spacing:normal;">Place orders with suppliers and receive them into stock with a lot number and best-before date.</div>
-    </a>
-    <a class="card" href="stock.html">
-      <div class="nm">Stock</div>
-      <div class="meta" style="font-family:Archivo,system-ui,sans-serif; font-size:12.5px; color:var(--steel); text-transform:none; letter-spacing:normal;">Real-time availability by product and by batch, computed from Deliveries minus Allocations.</div>
-    </a>
-    <a class="card" href="stock-take.html">
-      <div class="nm">Stock Take</div>
-      <div class="meta" style="font-family:Archivo,system-ui,sans-serif; font-size:12.5px; color:var(--steel); text-transform:none; letter-spacing:normal;">Count physical stock against the system, with a rapid one-item-at-a-time mode and a printable checklist.</div>
-    </a>
-    <a class="card" href="orders.html">
-      <div class="nm">Orders</div>
-      <div class="meta" style="font-family:Archivo,system-ui,sans-serif; font-size:12.5px; color:var(--steel); text-transform:none; letter-spacing:normal;">Customer orders, order lines, and stock allocated to specific batches.</div>
-    </a>
-    <a class="card" href="lists.html">
-      <div class="nm">Lists</div>
-      <div class="meta" style="font-family:Archivo,system-ui,sans-serif; font-size:12.5px; color:var(--steel); text-transform:none; letter-spacing:normal;">Picking, cutting, and packing lists generated per order — printable for the warehouse floor.</div>
-    </a>
-  </div>
+    <div class="live-divider"><span class="kicker">Right now</span></div>
+    <p class="live-sub">Deliveries, orders and stock levels below always reflect the current moment — they don't move with the week switcher above.</p>
 
-  <h2 style="margin-top:28px;">What's next</h2>
-  <div class="note info">
-    Customer delivery-routing is next, once there's enough customer/order history to make route
-    suggestions worthwhile.
+    <!-- Upcoming deliveries -->
+    <div class="section-gap">
+      <div class="panel" id="upcomingCard">
+        <div class="panel-h"><h3>Upcoming deliveries</h3></div>
+        <div id="upcomingList"></div>
+      </div>
+    </div>
+
+    <!-- Customer orders -->
+    <div class="section-gap">
+      <div class="panel">
+        <div class="panel-h">
+          <h3>Customer orders</h3>
+          <a href="orders.html" class="btn sm" style="margin-left:auto;">+ New customer order</a>
+        </div>
+        <div id="custOrdersList"></div>
+      </div>
+    </div>
+
+    <!-- Stock alerts -->
+    <div class="section-gap">
+      <h2 style="font-size:22px; margin-bottom:16px;">Stock alerts</h2>
+      <div class="two-col">
+        <div class="panel" style="margin-bottom:0;">
+          <div class="panel-h"><h3>Expiring this week</h3><span class="code" id="expiringCount" style="margin-left:auto;"></span></div>
+          <div id="expiringList"></div>
+        </div>
+        <div class="panel" style="margin-bottom:0;">
+          <div class="panel-h"><h3>Low stock</h3><span class="code" id="lowStockCount" style="margin-left:auto;"></span></div>
+          <div id="lowStockList"></div>
+        </div>
+      </div>
+    </div>
+
   </div>
 </main>
 
@@ -155,50 +155,294 @@
     return `${fmtDateShort(s)} – ${fmtDateShort(e)}`;
   }
 
-  // Purchase orders still awaiting delivery, soonest expected first — a
-  // quick "what's arriving and roughly when" glance without leaving the
-  // Dashboard. See purchase-orders.html for the full workflow.
-  async function loadUpcoming() {
+  // ---- week helpers — weeks run Monday–Sunday; offset 0 = the week
+  // containing today, negative = past, positive = future ----
+
+  function mondayOf(date) {
+    const d = new Date(date);
+    const day = d.getDay(); // 0 Sun .. 6 Sat
+    d.setDate(d.getDate() + (day === 0 ? -6 : 1 - day));
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }
+
+  function weekRange(offset) {
+    const start = mondayOf(new Date());
+    start.setDate(start.getDate() + offset * 7);
+    const end = new Date(start);
+    end.setDate(start.getDate() + 6);
+    return { start, end };
+  }
+
+  // Local-date ISO string (not toISOString, which converts to UTC and can
+  // shift the date near midnight in a +ve timezone like BST).
+  function isoDate(d) {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }
+
+  function fmtWeekRange(start, end) {
+    const sameMonth = start.getMonth() === end.getMonth();
+    const s = start.toLocaleDateString('en-GB', sameMonth ? { day: 'numeric' } : { day: 'numeric', month: 'short' });
+    const e = end.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+    return `${s}–${e}`;
+  }
+
+  function dateInRange(dateStr, startIso, endIso) {
+    return !!dateStr && dateStr >= startIso && dateStr <= endIso;
+  }
+
+  function rangesOverlap(aStart, aEnd, bStart, bEnd) {
+    return aStart <= bEnd && (aEnd || aStart) >= bStart;
+  }
+
+  function daysUntil(dateStr) {
+    const target = new Date(dateStr + 'T00:00:00');
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return Math.round((target - today) / 86400000);
+  }
+
+  // ---- icons (stroke-based, 24px grid, matches the sidebar's rail icons) ----
+  const ICON_CHEVRON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>`;
+  const ICON_CLOCK = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5v5l3.2 2"/></svg>`;
+  const ICON_CHECK = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>`;
+  const ICON_BOX = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7.5l9-4 9 4-9 4-9-4z"/><path d="M3 7.5v9l9 4 9-4v-9"/><path d="M12 11.5v9"/></svg>`;
+  const ICON_CLIPBOARD = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 3.5h6a1 1 0 0 1 1 1V6H8V4.5a1 1 0 0 1 1-1z"/><path d="M8.5 11h7M8.5 14.5h7M8.5 18h4"/></svg>`;
+  const ICON_CHECK_CIRCLE = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M8.5 12.3l2.3 2.3 4.7-5"/></svg>`;
+  const ICON_STOCK = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10"/><path d="M12 20V4"/><path d="M20 20v-7"/></svg>`;
+
+  // ---- dashboard data + rendering ----
+
+  let weekOffset = 0;
+  let dash = null; // cached load — week nav re-renders from this without refetching
+
+  async function loadDashboard() {
     const cfg = getStoredConfig();
     const token = tryResumeSession();
-    const card = document.getElementById('upcomingCard');
+    const card = document.getElementById('dashCard');
     if (!token || !cfg.spreadsheetId) { card.style.display = 'none'; return; }
     card.style.display = 'block';
-    const list = document.getElementById('upcomingList');
+    setStatus('Loading dashboard...');
     try {
-      const [poRows, polRows] = await Promise.all([
+      const [productRows, deliveryRows, allocationRows, poRows, polRows, orderRows, lineRows] = await Promise.all([
+        sheetsGet(cfg.spreadsheetId, 'Products!A:Z', token),
+        sheetsGet(cfg.spreadsheetId, 'Deliveries!A:Z', token),
+        sheetsGet(cfg.spreadsheetId, 'Allocations!A:Z', token),
         sheetsGet(cfg.spreadsheetId, 'PurchaseOrders!A:Z', token),
-        sheetsGet(cfg.spreadsheetId, 'PurchaseOrderLines!A:Z', token)
+        sheetsGet(cfg.spreadsheetId, 'PurchaseOrderLines!A:Z', token),
+        sheetsGet(cfg.spreadsheetId, 'Orders!A:Z', token),
+        sheetsGet(cfg.spreadsheetId, 'OrderLines!A:Z', token)
       ]);
-      const pos = toObjects(poRows).filter(o => o.STATUS === 'Ordered' || !o.STATUS);
-      pos.sort((a, b) => (a['EXPECTED START DATE'] || '9999').localeCompare(b['EXPECTED START DATE'] || '9999'));
-      const countByPoId = {};
-      toObjects(polRows).forEach(l => { countByPoId[l['PO ID']] = (countByPoId[l['PO ID']] || 0) + 1; });
 
-      if (!pos.length) {
-        list.innerHTML = `<div class="empty" style="padding:14px;">Nothing on order right now.</div>`;
-        return;
-      }
-      list.innerHTML = pos.map(po => `
-        <div class="bk-line">
-          <div class="t"><strong>${escapeHtml(po.SUPPLIER)}</strong><span class="muted">${escapeHtml(po.ID)}</span></div>
-          <div style="display:flex; justify-content:space-between; margin-top:2px; color:var(--steel); font-size:12px;">
-            <span>${escapeHtml(fmtDateRange(po['EXPECTED START DATE'], po['EXPECTED END DATE']))}</span>
-            <span>${countByPoId[po.ID] || 0} item(s)</span>
-          </div>
-        </div>
-      `).join('') + `<div style="margin-top:10px;"><a href="purchase-orders.html" style="font-size:12.5px; color:var(--chill);">View all purchase orders →</a></div>`;
+      const products = toObjects(productRows);
+      const productByCode = {};
+      products.forEach(p => { productByCode[p['Product code']] = p; });
+
+      // Batches currently in stock — Deliveries minus Allocations per
+      // product+lot, same computation as the Stock page.
+      const batchMap = {};
+      const bKey = (code, batch) => `${code} ${batch}`;
+      toObjects(deliveryRows).forEach(d => {
+        const k = bKey(d['PRODUCT CODE'], d['BATCH/LOT NUMBER']);
+        if (!batchMap[k]) batchMap[k] = { code: d['PRODUCT CODE'], batch: d['BATCH/LOT NUMBER'], unit: d.UNIT || 'kg', bbe: d['BEST BEFORE DATE'], received: 0, allocated: 0 };
+        batchMap[k].received += parseFloat(d['QTY RECEIVED']) || 0;
+        if (d['BEST BEFORE DATE'] && (!batchMap[k].bbe || d['BEST BEFORE DATE'] < batchMap[k].bbe)) batchMap[k].bbe = d['BEST BEFORE DATE'];
+      });
+      toObjects(allocationRows).forEach(a => {
+        const k = bKey(a['PRODUCT CODE'], a['BATCH/LOT NUMBER']);
+        if (batchMap[k]) batchMap[k].allocated += parseFloat(a['QTY ALLOCATED']) || 0;
+      });
+      const batches = Object.values(batchMap)
+        .map(b => ({ ...b, remaining: b.received - b.allocated }))
+        .filter(b => b.remaining > 0.0001);
+
+      const onHandByCode = {};
+      batches.forEach(b => { onHandByCode[b.code] = (onHandByCode[b.code] || 0) + b.remaining; });
+
+      const poLineCountById = {};
+      toObjects(polRows).forEach(l => { poLineCountById[l['PO ID']] = (poLineCountById[l['PO ID']] || 0) + 1; });
+      const orderLineCountById = {};
+      toObjects(lineRows).forEach(l => { orderLineCountById[l['ORDER ID']] = (orderLineCountById[l['ORDER ID']] || 0) + 1; });
+
+      dash = {
+        products, productByCode, batches, onHandByCode,
+        purchaseOrders: toObjects(poRows), poLineCountById,
+        orders: toObjects(orderRows), orderLineCountById
+      };
+
+      renderWeekBand();
+      renderUpcomingDeliveries();
+      renderCustomerOrders();
+      renderStockAlerts();
+      setStatus('Dashboard loaded.', 'ok');
     } catch (err) {
-      list.innerHTML = `<div class="note" style="margin:0;">Error loading purchase orders: ${escapeHtml(err.message)}</div>`;
+      setStatus('Error loading dashboard: ' + err.message, 'error');
     }
   }
+
+  // Week-scoped: everything in this band re-filters to the selected week.
+  function renderWeekBand() {
+    if (!dash) return;
+    const { start, end } = weekRange(weekOffset);
+    const startIso = isoDate(start), endIso = isoDate(end);
+    const isCurrent = weekOffset === 0;
+
+    const kicker = document.getElementById('wkKicker');
+    kicker.textContent = isCurrent ? `This week · ${fmtWeekRange(start, end)}` : `Week of ${fmtWeekRange(start, end)}`;
+    kicker.classList.toggle('away', !isCurrent);
+    document.getElementById('wkHeading').textContent = isCurrent ? "This week's snapshot" : `Snapshot — week of ${fmtWeekRange(start, end)}`;
+    document.getElementById('wkJump').style.display = isCurrent ? 'none' : 'inline-flex';
+
+    const ordersInWeek = dash.orders.filter(o => dateInRange(o['DELIVERY DATE'], startIso, endIso));
+    const pending = ordersInWeek.filter(o => (o.STATUS || 'New') === 'New').length;
+    const confirmed = ordersInWeek.length - pending;
+
+    const deliveriesExpected = dash.purchaseOrders.filter(po => {
+      if (po.STATUS === 'Cancelled') return false;
+      const s = po['EXPECTED START DATE'];
+      if (!s) return false;
+      return rangesOverlap(s, po['EXPECTED END DATE'] || s, startIso, endIso);
+    }).length;
+
+    const lotsExpiring = dash.batches.filter(b => dateInRange(b.bbe, startIso, endIso)).length;
+
+    document.getElementById('wkStats').innerHTML = `
+      <div class="stat"><span class="l">Customer orders</span><span class="n">${ordersInWeek.length}</span></div>
+      <div class="stat"><span class="l">Pending</span><span class="n">${pending}</span></div>
+      <div class="stat"><span class="l">Confirmed</span><span class="n">${confirmed}</span></div>
+      <div class="stat"><span class="l">Deliveries expected</span><span class="n">${deliveriesExpected}</span></div>
+      <div class="stat${lotsExpiring > 0 ? ' bad' : ''}"><span class="l">Lots expiring</span><span class="n">${lotsExpiring}</span></div>
+    `;
+  }
+
+  // Live: purchase orders still awaiting delivery, soonest expected first.
+  function renderUpcomingDeliveries() {
+    const list = document.getElementById('upcomingList');
+    const pos = dash.purchaseOrders
+      .filter(o => o.STATUS === 'Ordered' || !o.STATUS)
+      .sort((a, b) => (a['EXPECTED START DATE'] || '9999').localeCompare(b['EXPECTED START DATE'] || '9999'));
+
+    if (!pos.length) {
+      list.innerHTML = `
+        <div class="empty-block">
+          <div class="empty-icon">${ICON_BOX}</div>
+          <div class="empty-title">Nothing on order right now</div>
+          <div class="empty-sub">Deliveries you're expecting from suppliers will show up here.</div>
+          <a href="purchase-orders.html" class="btn ghost sm">+ New purchase order</a>
+        </div>`;
+      return;
+    }
+    list.innerHTML = pos.map(po => `
+      <a class="lrow" href="purchase-orders.html">
+        <div class="lrow-body">
+          <div class="lrow-name">${escapeHtml(po.SUPPLIER)} <span class="code" style="margin-left:6px;">${escapeHtml(po.ID)}</span></div>
+          <div class="lrow-meta">${escapeHtml(fmtDateRange(po['EXPECTED START DATE'], po['EXPECTED END DATE']))} &middot; ${dash.poLineCountById[po.ID] || 0} item(s)</div>
+        </div>
+        <span class="lrow-chev">${ICON_CHEVRON}</span>
+      </a>
+    `).join('');
+  }
+
+  // Live: open (not yet Dispatched) customer orders — clicking a row deep
+  // links into orders.html and opens that exact order's detail dialog.
+  function renderCustomerOrders() {
+    const list = document.getElementById('custOrdersList');
+    const open = dash.orders
+      .filter(o => o.STATUS !== 'Dispatched')
+      .sort((a, b) => (a['DELIVERY DATE'] || '9999').localeCompare(b['DELIVERY DATE'] || '9999'));
+
+    if (!open.length) {
+      list.innerHTML = `
+        <div class="empty-block">
+          <div class="empty-icon">${ICON_CLIPBOARD}</div>
+          <div class="empty-title">No open customer orders</div>
+          <div class="empty-sub">New orders you place will show up here until they're dispatched.</div>
+          <a href="orders.html" class="btn ghost sm">+ New customer order</a>
+        </div>`;
+      return;
+    }
+    list.innerHTML = open.map(o => {
+      const pending = (o.STATUS || 'New') === 'New';
+      return `
+      <a class="lrow" href="orders.html?open=${encodeURIComponent(o.ID)}">
+        <span class="lrow-icon ${pending ? 'pending' : 'confirmed'}">${pending ? ICON_CLOCK : ICON_CHECK}</span>
+        <div class="lrow-body">
+          <div class="lrow-name">${escapeHtml(o.CUSTOMER)}</div>
+          <div class="lrow-meta">${o['DELIVERY DATE'] ? 'Delivery ' + escapeHtml(fmtDateShort(o['DELIVERY DATE'])) : 'No delivery date set'} &middot; ${dash.orderLineCountById[o.ID] || 0} item(s)</div>
+        </div>
+        <div class="lrow-side">
+          <span class="tag ${pending ? 't-warn' : 't-ok'}">${pending ? 'Pending' : 'Confirmed'}</span>
+          <span class="lrow-chev">${ICON_CHEVRON}</span>
+        </div>
+      </a>`;
+    }).join('');
+  }
+
+  // Live: expiring lots (always the real current week, independent of the
+  // week switcher above) and low stock (on-hand below each product's own
+  // Reorder threshold) — see Products for that field.
+  function renderStockAlerts() {
+    const { start, end } = weekRange(0);
+    const startIso = isoDate(start), endIso = isoDate(end);
+    const expiring = dash.batches
+      .filter(b => dateInRange(b.bbe, startIso, endIso))
+      .sort((a, b) => a.bbe.localeCompare(b.bbe));
+
+    document.getElementById('expiringCount').textContent = expiring.length || '';
+    const expList = document.getElementById('expiringList');
+    expList.innerHTML = !expiring.length ? `
+      <div class="empty-block">
+        <div class="empty-icon">${ICON_CHECK_CIRCLE}</div>
+        <div class="empty-title">Nothing expiring this week</div>
+        <div class="empty-sub">Every lot in stock has more than a week of shelf life.</div>
+      </div>` : expiring.map(b => {
+      const days = daysUntil(b.bbe);
+      const prod = dash.productByCode[b.code];
+      return `
+      <div class="arow">
+        <div>
+          <div class="arow-name">${escapeHtml(prod ? prod['Product name'] : b.code)}</div>
+          <div class="arow-sub code">Lot ${escapeHtml(b.batch)}</div>
+        </div>
+        <span class="tag ${days <= 3 ? 't-crit' : 't-warn'}">${days}d left</span>
+      </div>`;
+    }).join('');
+
+    const low = dash.products
+      .map(p => ({ p, onHand: dash.onHandByCode[p['Product code']] || 0, threshold: parseFloat(p['Reorder threshold']) }))
+      .filter(x => !isNaN(x.threshold) && x.threshold > 0 && x.onHand < x.threshold)
+      .sort((a, b) => (a.onHand - a.threshold) - (b.onHand - b.threshold));
+
+    document.getElementById('lowStockCount').textContent = low.length || '';
+    const lowList = document.getElementById('lowStockList');
+    lowList.innerHTML = !low.length ? `
+      <div class="empty-block">
+        <div class="empty-icon">${ICON_STOCK}</div>
+        <div class="empty-title">Everything's well stocked</div>
+        <div class="empty-sub">No products below their reorder threshold right now.</div>
+      </div>` : low.map(({ p, onHand }) => {
+      const unit = p['Pricing basis'] === 'Per kg' ? 'kg' : 'pc';
+      return `
+      <div class="arow">
+        <div>
+          <div class="arow-name">${escapeHtml(p['Product name'])}</div>
+          <div class="arow-sub">${escapeHtml(p.Category || '')}</div>
+        </div>
+        <span class="tag t-warn">${onHand.toFixed(unit === 'kg' ? 1 : 0)}${unit} left</span>
+      </div>`;
+    }).join('');
+  }
+
+  document.getElementById('wkPrev').addEventListener('click', () => { weekOffset--; renderWeekBand(); });
+  document.getElementById('wkNext').addEventListener('click', () => { weekOffset++; renderWeekBand(); });
+  document.getElementById('wkJump').addEventListener('click', (e) => { e.preventDefault(); weekOffset = 0; renderWeekBand(); });
 
   window.addEventListener('load', () => {
     const cfg = getStoredConfig();
     document.getElementById('clientId').value = cfg.clientId;
     document.getElementById('spreadsheetId').value = cfg.spreadsheetId;
     refreshSignedInUI();
-    loadUpcoming();
+    loadDashboard();
   });
 
   document.getElementById('saveConfigBtn').addEventListener('click', () => {
@@ -214,7 +458,7 @@
     if (!clientId) { setStatus('Paste your OAuth Client ID first.', 'error'); return; }
     tokenClient = initGoogleAuth({
       clientId,
-      onToken: () => { setStatus('Signed in — session active.', 'ok'); loadUpcoming(); },
+      onToken: () => { setStatus('Signed in — session active.', 'ok'); loadDashboard(); },
       onError: (err) => setStatus('Sign-in error: ' + err, 'error')
     });
     tokenClient.requestAccessToken();

@@ -86,6 +86,14 @@
 //                             // a dynamic subtitle with a live SKU count.
 // }
 //
+// onLoad's third argument, openEdit(rowNumber), opens that row's add/edit
+// dialog — e.g. a linked page can deep-link in via a `?open=<ID>` query
+// param: `onLoad: (rows, get, openEdit) => { const id = new
+// URLSearchParams(location.search).get('open'); const row = id &&
+// rows.find(r => get(r.values, 'ID') === id); if (row) openEdit(row.rowNumber); }`
+// (clear the query param afterwards with history.replaceState so a later
+// manual reload doesn't reopen it).
+//
 // fields[i] corresponds to headers[i+1] when autoId is set (headers[0] is
 // the generated ID, not user-entered) or headers[i] when autoId is null
 // (headers[0] IS a field, e.g. CODE).
@@ -533,7 +541,7 @@ async function initCrudTable(config) {
       rowsData = rest.map((values, i) => ({ rowNumber: i + 2, values }));
       if (catalogue) renderCatalogueToolbar();
       applyViewAndRender();
-      if (onLoad) onLoad(rowsData, get);
+      if (onLoad) onLoad(rowsData, get, handleEdit);
       setStatus(`Loaded ${rest.length} row(s).`, 'ok');
     } catch (err) {
       setStatus('Error loading: ' + err.message, 'error');

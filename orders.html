@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=Roboto+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/style.css?v=12">
+<link rel="stylesheet" href="css/style.css?v=13">
 <link rel="icon" type="image/png" href="img/favicon.png">
 </head>
 <body>
@@ -94,6 +94,13 @@
         { key: 'STATUS', label: 'Status', type: 'select', options: ['New', 'Allocated', 'Picked', 'Cut', 'Packed', 'Dispatched'], required: true },
         { key: 'NOTES', label: 'Notes', type: 'textarea' }
       ],
+      onLoad: (rows, get, openEdit) => {
+        const id = new URLSearchParams(location.search).get('open');
+        if (!id) return;
+        history.replaceState(null, '', location.pathname);
+        const row = rows.find(r => get(r.values, 'ID') === id);
+        if (row) openEdit(row.rowNumber);
+      },
       sample: [
         ['', '2026-08-17', 'Selfridges & Co.', '2026-08-19', 'New', ''],
         ['', '2026-08-17', '107 Wine Bar & Shop (PIP Clapton Ltd)', '2026-08-20', 'New', '']
