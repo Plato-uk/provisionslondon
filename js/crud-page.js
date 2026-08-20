@@ -38,6 +38,9 @@
 //                              // of opening the dialog (see below) — off by
 //                              // default so other tables keep today's
 //                              // click-Edit-button behaviour unchanged.
+//   groupBy: 'Category',      // optional: bucket rows under a heading row
+//                             // keyed on this column's value. Display-only;
+//                             // ignored while a column sort is active.
 // }
 //
 // fields[i] corresponds to headers[i+1] when autoId is set (headers[0] is
@@ -78,7 +81,12 @@
 //     as a guaranteed fallback if no cell in a given row happens to do so.
 
 async function initCrudTable(config) {
-  const { mount, title, tab, headers, autoId, fields, sample, inlineEdit, subtitle } = config;
+  const { mount, title, tab, headers, autoId, fields, sample, inlineEdit, subtitle, groupBy } = config;
+  // Optional category-style grouping: rows are bucketed by this header's
+  // value and each bucket gets a `tr.group` heading row. Display-only —
+  // it never touches the sheet's row order. Suppressed while a column
+  // sort is active, since an explicit sort is a deliberate override.
+  const groupColIdx = groupBy ? headers.indexOf(groupBy) : -1;
   const root = document.querySelector(mount);
   const range = `${tab}!A:${colLetter(headers.length)}`;
   const endCol = colLetter(headers.length);
@@ -493,7 +501,7 @@ async function initCrudTable(config) {
       return;
     }
 
-    tbody.innerHTML = viewRows.map(d => {
+    const rowHtml = (d) => {
       const cells = displayOrder.map(idx => {
         const h = headers[idx];
         if (hiddenCols.has(h)) return '';
@@ -508,7 +516,26 @@ async function initCrudTable(config) {
       }).join('');
       const editLabel = inlineEdit ? 'Details' : 'Edit';
       return `<tr data-row="${d.rowNumber}">${cells}<td style="white-space:nowrap;"><button type="button" class="btn ghost sm" data-edit="${d.rowNumber}">${editLabel}</button> <button type="button" class="btn danger sm" data-del="${d.rowNumber}">Remove</button></td></tr>`;
-    }).join('');
+    };
+
+    if (groupColIdx === -1 || hiddenCols.has(headers[groupColIdx]) || sortColIdx !== null) {
+      tbody.innerHTML = viewRows.map(rowHtml).join('');
+      return;
+    }
+
+    const colSpan = headers.filter(h => !hiddenCols.has(h)).length + 1;
+    const order = [];
+    const buckets = new Map();
+    viewRows.forEach(d => {
+      const key = (d.values[groupColIdx] || '').toString().trim() || 'Uncategorised';
+      if (!buckets.has(key)) { buckets.set(key, []); order.push(key); }
+      buckets.get(key).push(d);
+    });
+    order.sort((a, b) => a.localeCompare(b));
+    tbody.innerHTML = order.map(key =>
+      `<tr class="group"><td colspan="${colSpan}"><span class="g-name">${escapeHtml(key)}</span><span class="g-count">${buckets.get(key).length}</span></td></tr>`
+      + buckets.get(key).map(rowHtml).join('')
+    ).join('');
   }
 
   async function handleDelete(rowNumber) {
