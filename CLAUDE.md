@@ -11,9 +11,10 @@ models, sheet schemas, or conventions between the two.
   is `spreadsheets` plus `drive.file` (restricted — the app only ever sees
   files it creates itself) for the Products photo upload feature
   (`js/drive.js`), plus `userinfo.email`/`userinfo.profile` (non-sensitive)
-  so the signed-in user's name/email can be shown in the top-right badge
-  present on every page (also the logout control — see `initUserBadge()` in
-  `js/config.js`).
+  so the signed-in user's name/email can be shown next to the "Dashboard"
+  heading on `index.html` (also the logout control — see `initUserBadge()`
+  in `js/config.js`, called on every page but a no-op where the badge
+  markup isn't present).
 - Generic CRUD table framework in `js/crud-page.js` — every flat list page
   (Products, Suppliers, Customers, Orders, OrderLines, Allocations)
   configures one `initCrudTable()` call instead of hand-rolling

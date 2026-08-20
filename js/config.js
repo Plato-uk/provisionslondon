@@ -106,11 +106,12 @@ function tryResumeSession() {
   return getStoredToken();
 }
 
-// Drives the top-right "signed in as X" badge (markup lives in every page's
-// <body>, right before .app-sidebar) — shows/hides it based on session
-// state and wires its logout button once. Runs automatically on every
-// page load; index.html also calls it straight after a successful sign-in
-// so the badge appears without a reload.
+// Drives the "signed in as X" badge on the Dashboard (index.html only —
+// its markup sits next to the "Dashboard" heading there) — shows/hides it
+// based on session state and wires its logout button once. Runs
+// automatically on every page load (a no-op on pages without the badge);
+// index.html also calls it straight after a successful sign-in so the
+// badge appears without a reload.
 function renderUserBadgeUI() {
   const badge = document.getElementById('userBadge');
   if (!badge) return;
