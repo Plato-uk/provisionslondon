@@ -24,9 +24,15 @@ models, sheet schemas, or conventions between the two.
   framework — their line-item UX (and, for Orders, per-line stock
   allocation) doesn't fit the generic single-flat-table model. Orders,
   OrderLines and Allocations have no page of their own any more: creating
-  an order (the "+ Add order" wizard), viewing it, changing its STATUS, and
-  allocating stock to each line (FEFO lot picker, writes straight to
-  Allocations) all happen inside one dialog on `orders.html`.
+  an order (the "+ Add order" wizard), viewing it, changing its STATUS,
+  adding/removing lines, allocating stock to each line (FEFO lot picker,
+  writes straight to Allocations), and deleting the order outright all
+  happen inside one dialog on `orders.html`. Removing a line or the whole
+  order cascades: it also deletes that line's/order's Allocations (and
+  OrderLines, for a whole-order delete) rather than leaving them dangling —
+  see `buildDeleteRowRequests()` for the row-deletion-ordering gotcha this
+  relies on (delete highest row index first within a sheet, since deleting
+  a row shifts every later row's index down).
 
 ## Sheet schema (see `setup.html`'s `REQUIRED_TABS` for the source of truth)
 - **Products** — item master, one row per SKU keyed by `Product code`

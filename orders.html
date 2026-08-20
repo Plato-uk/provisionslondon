@@ -127,6 +127,18 @@
     return sheetIds[tabName] ?? null;
   }
 
+  // Builds deleteDimension requests for a set of rows in one sheet, highest
+  // row first — deleting bottom-up within the same sheetId so an earlier
+  // deletion never shifts a later one's row index out from under it. Safe
+  // to combine the result for several different sheets into one
+  // sheetsBatchUpdate call (requests targeting different sheetIds don't
+  // affect each other's indices).
+  function buildDeleteRowRequests(sheetId, rowNumbers) {
+    return [...rowNumbers].sort((a, b) => b - a).map(rn => ({
+      deleteDimension: { range: { sheetId, dimension: 'ROWS', startIndex: rn - 1, endIndex: rn } }
+    }));
+  }
+
   function toRowObjects(rows) {
     if (!rows.length) return [];
     const [head, ...rest] = rows;
@@ -402,6 +414,9 @@
   function renderViewForm(order) {
     dirtyCheck = null; // every action here (allocate/remove/status) saves immediately — nothing unsaved to lose
     const lines = orderLinesData.filter(l => l.obj['ORDER ID'] === order.obj.ID);
+    const orderProducts = products
+      .filter(p => (p.Active || 'Yes') !== 'No')
+      .filter(p => !lines.some(l => l.obj['PRODUCT CODE'] === p['Product code']));
 
     form.innerHTML = `
       <div class="dlg-h">
@@ -427,12 +442,33 @@
           <tbody>${lines.length ? lines.map(l => renderLineRow(l)).join('') : `<tr><td colspan="5" class="empty" style="padding:12px;">No items on this order.</td></tr>`}</tbody>
         </table>
 
+        <div class="field" style="margin-top:12px;">
+          <label>Add product to this order</label>
+          <div class="inline">
+            <div class="field" style="flex:2; margin-bottom:0;">
+              <select id="ord_view_addProduct">
+                <option value="">${orderProducts.length ? 'Search by name or code…' : 'No other products to add'}</option>
+                ${orderProducts.map(p => `<option value="${escapeHtml(p['Product code'])}">${escapeHtml(p['Product name'])} — ${escapeHtml(p['Product code'])}</option>`).join('')}
+              </select>
+            </div>
+            <div class="field" style="max-width:90px; margin-bottom:0;">
+              <input type="number" step="any" id="ord_view_addQty" placeholder="Qty">
+            </div>
+            <div class="field" style="max-width:80px; margin-bottom:0;">
+              <select id="ord_view_addUnit"><option value="kg">kg</option><option value="pc">pc</option></select>
+            </div>
+            <button type="button" class="btn ghost sm" id="ord_view_addLineBtn">+ Add</button>
+          </div>
+        </div>
+
         <div id="orderDlgStatus" class="mono" style="margin-top:10px; font-size:12.5px; color:var(--steel);"></div>
       </div>
       <div class="dlg-f">
+        <button type="button" class="btn danger" data-delete-order>Delete order</button>
         <button type="button" class="btn ghost" data-cancel>Close</button>
       </div>
     `;
+    enhanceSelect(form.querySelector('#ord_view_addProduct'));
 
     form.onsubmit = (e) => e.preventDefault();
     form.onchange = (e) => {
@@ -440,6 +476,8 @@
     };
     form.onclick = (e) => {
       if (e.target.closest('[data-cancel]')) { guard.guardedClose(); return; }
+      if (e.target.closest('[data-delete-order]')) { handleDeleteOrder(order); return; }
+      if (e.target.closest('#ord_view_addLineBtn')) { handleAddLineToOrder(order); return; }
       const toggleBtn = e.target.closest('[data-toggle-alloc]');
       if (toggleBtn) {
         const lineId = toggleBtn.dataset.toggleAlloc;
@@ -451,6 +489,8 @@
       if (allocBtn) { handleAllocate(order, allocBtn.dataset.allocateLine); return; }
       const rmAllocBtn = e.target.closest('[data-remove-alloc]');
       if (rmAllocBtn) { handleRemoveAllocation(order, rmAllocBtn.dataset.removeAlloc); return; }
+      const rmLineBtn = e.target.closest('[data-remove-line]');
+      if (rmLineBtn) { handleRemoveLine(order, rmLineBtn.dataset.removeLine); return; }
     };
   }
 
@@ -469,7 +509,10 @@
         <td class="num">${ordered} ${escapeHtml(l.UNIT)}</td>
         <td class="num">${allocatedQty.toFixed(2)} ${escapeHtml(l.UNIT)}</td>
         <td>${statusBadge}</td>
-        <td><button type="button" class="btn ghost sm" data-toggle-alloc="${escapeHtml(l.ID)}">${isExpanded ? 'Close' : 'Allocate'}</button></td>
+        <td style="white-space:nowrap;">
+          <button type="button" class="btn ghost sm" data-toggle-alloc="${escapeHtml(l.ID)}">${isExpanded ? 'Close' : 'Allocate'}</button>
+          <button type="button" class="btn ghost sm" data-remove-line="${escapeHtml(l.ID)}">Remove</button>
+        </td>
       </tr>
     `;
     if (!isExpanded) return row;
@@ -578,10 +621,94 @@
     try {
       const sid = await ensureSheetId(cfg, 'Allocations');
       if (sid === null) throw new Error('Allocations tab not found — run Setup first.');
-      await sheetsBatchUpdate(cfg.spreadsheetId, [{
-        deleteDimension: { range: { sheetId: sid, dimension: 'ROWS', startIndex: alloc.rowNumber - 1, endIndex: alloc.rowNumber } }
-      }], token);
+      await sheetsBatchUpdate(cfg.spreadsheetId, buildDeleteRowRequests(sid, [alloc.rowNumber]), token);
       await refreshAfterAllocationChange(order.obj.ID);
+    } catch (err) {
+      setDlgStatus('Error: ' + err.message, 'error');
+    }
+  }
+
+  async function handleAddLineToOrder(order) {
+    const codeSel = form.querySelector('#ord_view_addProduct');
+    const qtyInput = form.querySelector('#ord_view_addQty');
+    const unitSel = form.querySelector('#ord_view_addUnit');
+    const code = codeSel.value;
+    const qty = parseFloat(qtyInput.value);
+    const unit = unitSel.value;
+    if (!code) { setDlgStatus('Pick a product first.', 'error'); return; }
+    if (!qty || qty <= 0) { setDlgStatus('Enter a quantity.', 'error'); return; }
+
+    const cfg = await ensureAuth(setDlgStatus);
+    if (!cfg) return;
+    setDlgStatus('Adding product...');
+    try {
+      const existingLines = await sheetsGet(cfg.spreadsheetId, 'OrderLines!A:A', token);
+      const lineId = nextId(existingLines.length ? existingLines : [['ID']], 'OL');
+      await sheetsAppend(cfg.spreadsheetId, 'OrderLines!A:G', [lineId, order.obj.ID, code, qty, unit, 'New', ''], token);
+      await refreshAfterAllocationChange(order.obj.ID);
+    } catch (err) {
+      setDlgStatus('Error: ' + err.message, 'error');
+    }
+  }
+
+  // Removing a line cascades to its allocations too — an allocation without
+  // an order line would be a dangling reference with no order to trace back
+  // to (and would keep the lot it claims stuck as "unavailable" forever).
+  async function handleRemoveLine(order, lineId) {
+    const line = orderLinesData.find(l => l.obj.ID === lineId);
+    if (!line) return;
+    const lineAllocs = allocationsData.filter(a => a.obj['ORDER LINE ID'] === lineId);
+    const msg = lineAllocs.length
+      ? `Remove this line? It has ${lineAllocs.length} stock allocation(s) already made — those will be removed too, freeing the stock back up. This can't be undone.`
+      : `Remove this line? This can't be undone.`;
+    if (!confirm(msg)) return;
+
+    const cfg = await ensureAuth(setDlgStatus);
+    if (!cfg) return;
+    setDlgStatus('Removing...');
+    try {
+      const linesSid = await ensureSheetId(cfg, 'OrderLines');
+      const allocsSid = await ensureSheetId(cfg, 'Allocations');
+      if (linesSid === null || allocsSid === null) throw new Error('Required tab not found — run Setup first.');
+      const requests = [
+        ...buildDeleteRowRequests(linesSid, [line.rowNumber]),
+        ...buildDeleteRowRequests(allocsSid, lineAllocs.map(a => a.rowNumber))
+      ];
+      await sheetsBatchUpdate(cfg.spreadsheetId, requests, token);
+      await refreshAfterAllocationChange(order.obj.ID);
+    } catch (err) {
+      setDlgStatus('Error: ' + err.message, 'error');
+    }
+  }
+
+  // Deletes the order itself, plus every line on it and every allocation on
+  // those lines — otherwise they'd be left dangling with no order to belong
+  // to, and their stock would stay claimed forever.
+  async function handleDeleteOrder(order) {
+    const lines = orderLinesData.filter(l => l.obj['ORDER ID'] === order.obj.ID);
+    const lineIds = new Set(lines.map(l => l.obj.ID));
+    const allocs = allocationsData.filter(a => lineIds.has(a.obj['ORDER LINE ID']));
+    const msg = `Delete order ${order.obj.ID}? This removes its ${lines.length} line(s)`
+      + (allocs.length ? ` and ${allocs.length} stock allocation(s)` : '') + `. This can't be undone.`;
+    if (!confirm(msg)) return;
+
+    const cfg = await ensureAuth(setDlgStatus);
+    if (!cfg) return;
+    setDlgStatus('Deleting...');
+    try {
+      const ordersSid = await ensureSheetId(cfg, 'Orders');
+      const linesSid = await ensureSheetId(cfg, 'OrderLines');
+      const allocsSid = await ensureSheetId(cfg, 'Allocations');
+      if (ordersSid === null || linesSid === null || allocsSid === null) throw new Error('Required tab not found — run Setup first.');
+      const requests = [
+        ...buildDeleteRowRequests(ordersSid, [order.rowNumber]),
+        ...buildDeleteRowRequests(linesSid, lines.map(l => l.rowNumber)),
+        ...buildDeleteRowRequests(allocsSid, allocs.map(a => a.rowNumber))
+      ];
+      await sheetsBatchUpdate(cfg.spreadsheetId, requests, token);
+      dialogEl.close();
+      setStatus(`Order ${order.obj.ID} deleted.`, 'ok');
+      loadAll();
     } catch (err) {
       setDlgStatus('Error: ' + err.message, 'error');
     }
