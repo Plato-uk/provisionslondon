@@ -68,6 +68,25 @@
     <div id="historyWrap"></div>
   </div>
 
+  <!-- Read-only view of a past (completed) stock take -->
+  <div id="pastCard" style="display:none;">
+    <div class="no-print">
+      <div class="panel-h" style="border:none; background:none; padding:0 0 8px;">
+        <button type="button" class="btn ghost sm" id="backToHistoryBtn" style="margin:0;">&larr; Back</button>
+        <h3 id="pastHeading" style="text-transform:none; letter-spacing:normal; font-size:15px; color:var(--ink); font-weight:600; margin-left:10px;"></h3>
+        <button type="button" class="btn ghost sm" id="pastPrintBtn" style="margin:0; margin-left:auto;">Print</button>
+      </div>
+    </div>
+    <div class="panel"><div class="scroll" style="overflow-x:auto;">
+      <table id="pastTable">
+        <thead><tr>
+          <th></th><th>Product</th><th>Category</th><th class="num">System qty</th><th class="num">Counted qty</th><th class="num">Variance</th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+    </div></div>
+  </div>
+
   <!-- A stock take is in progress -->
   <div id="activeCard" style="display:none;">
     <div class="no-print">
@@ -131,6 +150,9 @@
   let products = [];
   let productByCode = {};
   let lotsByProduct = {}; // Product code -> [{ batch, remaining, unit }] currently in stock, for the print sheet
+  let pastStockTakesList = []; // last-rendered history rows, so a row click can look up its full record
+  let pastStockTake = null;    // { rowNumber, obj } of the past stock take currently being viewed, or null
+  let pastLines = [];          // [{ rowNumber, obj }] from StockTakeLines for pastStockTake
   let searchTerm = '';
   let editingLine = null; // rowNumber currently mid-inline-edit, or null
   let rapidQueue = [];
@@ -265,16 +287,80 @@
 
   function renderHistory(past) {
     const wrap = document.getElementById('historyWrap');
-    if (!past.length) { wrap.innerHTML = ''; return; }
+    if (!past.length) { wrap.innerHTML = ''; pastStockTakesList = []; return; }
     const sorted = [...past].sort((a, b) => (b.obj['DATE STARTED'] || '').localeCompare(a.obj['DATE STARTED'] || ''));
+    pastStockTakesList = sorted;
     wrap.innerHTML = `
       <div class="panel-h" style="border:none; background:none; padding:16px 0 8px;"><h3 style="text-transform:none; letter-spacing:normal; font-size:15px; color:var(--ink); font-weight:600;">Past stock takes</h3></div>
       <div class="panel"><div class="scroll" style="overflow-x:auto;">
         <table><thead><tr><th>ID</th><th>Date started</th><th>Status</th><th>Notes</th></tr></thead>
-        <tbody>${sorted.map(r => `<tr><td class="code">${escapeHtml(r.obj.ID)}</td><td>${escapeHtml(fmtDateShort(r.obj['DATE STARTED']))}</td><td><span class="tag t-ok">${escapeHtml(r.obj.STATUS)}</span></td><td class="muted">${escapeHtml(r.obj.NOTES)}</td></tr>`).join('')}</tbody></table>
+        <tbody>${sorted.map(r => `<tr data-id="${escapeHtml(r.obj.ID)}" style="cursor:pointer;" title="Click to view details"><td class="code">${escapeHtml(r.obj.ID)}</td><td>${escapeHtml(fmtDateShort(r.obj['DATE STARTED']))}</td><td><span class="tag t-ok">${escapeHtml(r.obj.STATUS)}</span></td><td class="muted">${escapeHtml(r.obj.NOTES)}</td></tr>`).join('')}</tbody></table>
       </div></div>
     `;
   }
+
+  document.getElementById('historyWrap').addEventListener('click', (e) => {
+    const tr = e.target.closest('tr[data-id]');
+    if (!tr) return;
+    const st = pastStockTakesList.find(r => r.obj.ID === tr.dataset.id);
+    if (st) viewPastStockTake(st);
+  });
+
+  // ---- viewing a past (completed) stock take, read-only ----
+
+  async function viewPastStockTake(st) {
+    const cfg = await ensureAuth();
+    if (!cfg) return;
+    setStatus(`Loading ${st.obj.ID}...`);
+    try {
+      const lineRows = await sheetsGet(cfg.spreadsheetId, 'StockTakeLines!A:Z', token);
+      pastLines = toRowObjects(lineRows).filter(l => l.obj['STOCK TAKE ID'] === st.obj.ID);
+      pastStockTake = st;
+      document.getElementById('startCard').style.display = 'none';
+      document.getElementById('pastCard').style.display = 'block';
+      renderPastDetail();
+      setStatus(`Loaded ${pastLines.length} product(s).`, 'ok');
+    } catch (err) {
+      setStatus('Error loading stock take: ' + err.message, 'error');
+    }
+  }
+
+  function renderPastDetail() {
+    document.getElementById('pastHeading').textContent =
+      `Stock take ${pastStockTake.obj.ID} — started ${fmtDateShort(pastStockTake.obj['DATE STARTED'])} — ${pastStockTake.obj.STATUS}`;
+    const tbody = document.querySelector('#pastTable tbody');
+    const view = pastLines
+      .map(l => ({ ...l, prod: productByCode[l.obj['PRODUCT CODE']] || {} }))
+      .sort((a, b) => (a.prod['Category'] || '').localeCompare(b.prod['Category'] || '') || (a.prod['Product name'] || '').localeCompare(b.prod['Product name'] || ''));
+    if (!view.length) {
+      tbody.innerHTML = `<tr><td colspan="6" class="empty" style="padding:18px;">No lines recorded for this stock take.</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = view.map(l => {
+      const photo = l.prod['Photo URL'];
+      const box = 'width:52px;height:52px;border-radius:8px;vertical-align:middle;background:#EEF0F2;';
+      const photoHtml = photo
+        ? `<img src="${escapeHtml(photo)}" alt="" loading="lazy" style="${box}object-fit:cover;display:block;">`
+        : `<span style="${box}display:inline-block;"></span>`;
+      const counted = isCounted(l.obj);
+      const variance = counted ? (parseFloat(l.obj['COUNTED QTY']) - (parseFloat(l.obj['SYSTEM QTY']) || 0)) : null;
+      const varClass = variance === null ? '' : variance < -0.0001 ? 'neg' : '';
+      return `<tr>
+        <td>${photoHtml}</td>
+        <td><strong>${escapeHtml(l.obj['PRODUCT CODE'])}</strong><br><span class="muted" style="font-size:12px;">${escapeHtml(l.prod['Product name'] || '')}</span></td>
+        <td>${escapeHtml(l.prod['Category'] || '')}</td>
+        <td class="num">${(parseFloat(l.obj['SYSTEM QTY']) || 0).toFixed(2)} ${escapeHtml(l.obj.UNIT)}</td>
+        <td class="num">${counted ? parseFloat(l.obj['COUNTED QTY']).toFixed(2) + ' ' + escapeHtml(l.obj.UNIT) : '<span class="muted">—</span>'}</td>
+        <td class="num ${varClass}">${variance === null ? '' : (variance > 0 ? '+' : '') + variance.toFixed(2)}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  document.getElementById('backToHistoryBtn').addEventListener('click', () => {
+    document.getElementById('pastCard').style.display = 'none';
+    document.getElementById('startCard').style.display = 'block';
+  });
+  document.getElementById('pastPrintBtn').addEventListener('click', () => window.print());
 
   // ---- start a new stock take ----
 
