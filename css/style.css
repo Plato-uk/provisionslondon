@@ -92,6 +92,7 @@ td.cell-editable input,td.cell-editable select{padding:4px 6px}
 td img{border-radius:3px}
 .note-icon{display:inline-flex;color:var(--mist);cursor:help;vertical-align:middle}
 .note-icon:hover{color:var(--chill)}
+.note-icon svg{pointer-events:none}
 
 /* Category group rows — emitted by initCrudTable's `groupBy` option. */
 tr.group td{padding:26px 12px 8px;border-bottom:2px solid var(--ink);background:var(--white)}
