@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=Roboto+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/style.css?v=15">
+<link rel="stylesheet" href="css/style.css?v=16">
 <link rel="icon" type="image/png" href="img/favicon.png">
 </head>
 <body>
@@ -153,6 +153,19 @@
     return p ? p['Product name'] : code;
   }
 
+  // Landed cost (£) is tracked per the product's own unit (kg or piece,
+  // matching Pricing basis) — same basis QTY ORDERED/qty is already in, so
+  // no unit conversion is needed to get a line total.
+  function landedCostFor(code) {
+    const p = products.find(pr => pr['Product code'] === code);
+    const n = p ? parseFloat(p['Landed cost £']) : NaN;
+    return isNaN(n) ? 0 : n;
+  }
+
+  function currency(n) {
+    return `£${n.toFixed(2)}`;
+  }
+
   // Products can only be ordered from a supplier as whole items — anything
   // cut from another product (Products' "Cut from (code)" field) is made
   // in-house from stock, never bought in directly.
@@ -268,6 +281,7 @@
         <div class="field">
           <label>Products</label>
           <div id="po_productPicker"></div>
+          <div id="po_orderSummary" class="mono" style="margin-top:10px; font-size:13px; color:var(--steel); text-align:right;"></div>
         </div>
 
         <div class="field" style="margin-top:12px;">
@@ -310,11 +324,13 @@
     const mount = form.querySelector('#po_productPicker');
     if (!supplier) {
       mount.innerHTML = `<div class="empty" style="padding:12px 0;">Pick a supplier first.</div>`;
+      renderOrderSummary();
       return;
     }
     const supplierProducts = orderableSupplierProducts(supplier);
     if (!supplierProducts.length) {
       mount.innerHTML = `<div class="empty" style="padding:12px 0;">No orderable products set up for this supplier — anything cut from another product doesn't show here.</div>`;
+      renderOrderSummary();
       return;
     }
     const byCategory = new Map();
@@ -332,6 +348,16 @@
         ${byCategory.get(cat).map(productPickerRowHtml).join('')}
       </div>
     `).join('');
+    renderOrderSummary();
+  }
+
+  function renderOrderSummary() {
+    const el = form.querySelector('#po_orderSummary');
+    if (!el) return;
+    if (!draftLines.length) { el.textContent = ''; return; }
+    const total = draftLines.reduce((sum, l) => sum + l.qty * landedCostFor(l.code), 0);
+    const itemCount = draftLines.length;
+    el.textContent = `Estimated landed cost: ${currency(total)} across ${itemCount} item${itemCount === 1 ? '' : 's'}`;
   }
 
   function productPickerRowHtml(p) {
@@ -382,9 +408,11 @@
       draftLines.push({ code, name: p['Product name'], qty, unit: meta.unit });
     }
     const row = form.querySelector(`.picker-row[data-code="${CSS.escape(code)}"]`);
-    if (!row) return;
-    row.querySelector('.stepper-qty').innerHTML = stepperQtyHtml(qty, meta);
-    row.querySelector('[data-step="-1"]').disabled = qty <= 0;
+    if (row) {
+      row.querySelector('.stepper-qty').innerHTML = stepperQtyHtml(qty, meta);
+      row.querySelector('[data-step="-1"]').disabled = qty <= 0;
+    }
+    renderOrderSummary();
   }
 
   async function handleCreateSubmit(e) {
@@ -461,6 +489,7 @@
           <thead><tr><th>Product</th><th class="num">Ordered</th><th>Unit</th>${!isOrdered ? '<th class="num">Received</th><th>Lot</th><th>Best before</th>' : ''}</tr></thead>
           <tbody>${itemsHtml || `<tr><td colspan="${isOrdered ? 3 : 6}" class="empty" style="padding:12px;">No items.</td></tr>`}</tbody>
         </table>
+        ${lines.length ? `<div class="mono" style="margin-top:8px; font-size:13px; color:var(--steel); text-align:right;">Estimated landed cost: ${currency(lines.reduce((sum, l) => sum + (parseFloat(l.obj['QTY ORDERED']) || 0) * landedCostFor(l.obj['PRODUCT CODE']), 0))}</div>` : ''}
         ${po.obj.NOTES ? `<div class="field" style="margin-top:12px;"><label>Notes</label><div>${escapeHtml(po.obj.NOTES)}</div></div>` : ''}
         <div id="poDlgStatus" class="mono" style="margin-top:10px; font-size:12.5px; color:var(--steel);"></div>
       </div>
