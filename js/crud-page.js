@@ -65,8 +65,14 @@
 //     gpLabel: 'GP',
 //     gp: (pick) => ({ text: '31.2%', color: '#1F7A44' }),
 //     badges: (pick) => [{ text: 'No Xero code', tone: 'warn' }],  // tone: warn|crit|yell;
-//                                 // only the first shows on the row card
+//                                 // every badge shows on the row card, most
+//                                 // important first
 //     stats: (rows, get) => [{ l: 'Active', n: '231', u: 'SKUs', tone: 'warn' }],
+//       // a stat can also be clickable: add `key: 'attention'` (any unique
+//       // string) and `filter: (pick) => pick('...') === '...'` — clicking
+//       // it toggles a rowsData-wide predicate filter, stacking with the
+//       // active tab and search term. Always computed from the full
+//       // unfiltered rowsData, never from the current view.
 //     kicker: (pick) => 'Cheese · CCS050',        // dialog header, above the title
 //     detailSub: (pick) => 'Fromagerie Dongé · via Fine Cheese Co',
 //     emptyTitle: 'Nothing in the catalogue yet',
@@ -134,6 +140,9 @@ async function initCrudTable(config) {
   }
   let activeTab = null; // catalogue mode only: null = "All"
   let catCounts = new Map(); // catalogue mode only: tabsBy value -> total row count, unfiltered
+  let activeStatKey = null; // catalogue mode only: key of the clicked filterable stat tile, if any
+  let lastStats = []; // catalogue mode only: the stats array from the last toolbar render, so a stat click can look its own filter back up
+  function rowPick(values) { return (key) => get(values, key); }
   const root = document.querySelector(mount);
   const range = `${tab}!A:${colLetter(headers.length)}`;
   const endCol = colLetter(headers.length);
@@ -547,6 +556,10 @@ async function initCrudTable(config) {
       const idx = hIdx[catalogue.tabsBy];
       view = view.filter(d => (d.values[idx] || '').toString().trim() === activeTab);
     }
+    if (catalogue && activeStatKey) {
+      const stat = lastStats.find(s => s.key === activeStatKey);
+      if (stat && stat.filter) view = view.filter(d => stat.filter(rowPick(d.values)));
+    }
     if (searchTerm) {
       view = view.filter(d => d.values.some(v => (v ?? '').toString().toLowerCase().includes(searchTerm)));
     }
@@ -634,12 +647,18 @@ async function initCrudTable(config) {
       </button>`).join('');
 
     if (catalogue.stats) {
-      const stats = catalogue.stats(rowsData, get);
-      statsEl.innerHTML = stats.map(s => `
-        <div class="stat${s.tone === 'crit' ? ' bad' : s.tone === 'warn' ? ' alert' : ''}">
+      lastStats = catalogue.stats(rowsData, get);
+      statsEl.innerHTML = lastStats.map(s => {
+        const toneClass = s.tone === 'crit' ? ' bad' : s.tone === 'warn' ? ' alert' : '';
+        const filterableClass = s.filter ? ' filterable' : '';
+        const activeClass = s.filter && activeStatKey === s.key ? ' filter-active' : '';
+        const tag = s.filter ? 'button' : 'div';
+        const attrs = s.filter ? ` type="button" data-stat-key="${escapeHtml(s.key)}"` : '';
+        return `<${tag}${attrs} class="stat${toneClass}${filterableClass}${activeClass}">
           <div class="l">${escapeHtml(s.l)}</div>
           <div class="n">${escapeHtml(s.n)}${s.u ? ` <span style="font-size:12px;color:var(--steel);font-weight:500;">${escapeHtml(s.u)}</span>` : ''}</div>
-        </div>`).join('');
+        </${tag}>`;
+      }).join('');
     }
   }
 
@@ -658,7 +677,7 @@ async function initCrudTable(config) {
       : `<span class="cr-photo"></span>`;
     const tagHtml = tagInfo && tagInfo.text
       ? `<span class="tag ${tagInfo.on ? 't-chill' : 't-amb'}">${escapeHtml(tagInfo.text)}</span>` : '';
-    const badgeHtml = badges.length ? `<span class="tag t-${badges[0].tone}">${escapeHtml(badges[0].text)}</span>` : '';
+    const badgeHtml = badges.map(b => `<span class="tag t-${b.tone}">${escapeHtml(b.text)}</span>`).join('');
     const priceCells = (catalogue.prices || []).map(p => `<div class="cr-price${p.big ? ' big' : ''}">${escapeHtml(p.get(pick))}</div>`).join('');
 
     return `
@@ -679,7 +698,7 @@ async function initCrudTable(config) {
 
   function renderCatalogueGroups(viewRows) {
     if (!viewRows.length) {
-      const title = rowsData.length ? 'No rows match your search.' : (catalogue.emptyTitle || 'Nothing here yet.');
+      const title = rowsData.length ? 'No rows match the current filters.' : (catalogue.emptyTitle || 'Nothing here yet.');
       const sub = !rowsData.length && catalogue.emptySub ? `<div>${escapeHtml(catalogue.emptySub)}</div>` : '';
       groupsEl.innerHTML = `<div class="empty"><strong>${escapeHtml(title)}</strong>${sub}</div>`;
       return;
@@ -737,6 +756,13 @@ async function initCrudTable(config) {
     groupsEl.addEventListener('click', (e) => {
       const row = e.target.closest('.cat-row[data-row]');
       if (row) handleEdit(parseInt(row.dataset.row, 10));
+    });
+    statsEl.addEventListener('click', (e) => {
+      const btn = e.target.closest('button[data-stat-key]');
+      if (!btn) return;
+      activeStatKey = activeStatKey === btn.dataset.statKey ? null : btn.dataset.statKey;
+      renderCatalogueToolbar();
+      applyViewAndRender();
     });
     // Matches the "/" hint shown next to the search box.
     document.addEventListener('keydown', (e) => {

@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=Roboto+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/style.css?v=10">
+<link rel="stylesheet" href="css/style.css?v=11">
 <link rel="icon" type="image/png" href="img/favicon.png">
 </head>
 <body>
@@ -79,7 +79,7 @@
 <script src="js/dialog-guard.js?v=1"></script>
 <script src="js/drive.js?v=1"></script>
 <script src="js/searchable-select.js?v=1"></script>
-<script src="js/crud-page.js?v=8"></script>
+<script src="js/crud-page.js?v=9"></script>
 <script>
   function requireAuth() {
     const cfg = getStoredConfig();
@@ -192,7 +192,7 @@
           return [
             { l: 'Active', n: String(active), u: `of ${rows.length}` },
             { l: 'Average GP', n: avgGp === null ? '—' : `${avgGp.toFixed(1)}%`, u: 'at list' },
-            { l: 'Needs attention', n: String(needsAttn), u: 'records', tone: needsAttn > 0 ? 'warn' : undefined },
+            { l: 'Needs attention', n: String(needsAttn), u: 'records', tone: needsAttn > 0 ? 'warn' : undefined, key: 'attention', filter: (pick) => rowBadges(pick).length > 0 },
             { l: 'Categories', n: String(cats.size), u: 'in use' }
           ];
         },

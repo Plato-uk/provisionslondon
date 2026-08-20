@@ -104,6 +104,10 @@ tr.group .g-count{font-family:'Roboto Mono',monospace;font-size:11px;color:var(-
 .cat-search input[type="search"]::placeholder{color:var(--mist)}
 .cat-search kbd{font-family:'Roboto Mono',monospace;font-size:11px;color:var(--mist);border:1px solid #E3E6E9;border-radius:3px;padding:1px 5px}
 .cat-stats{display:flex;gap:34px;flex-wrap:wrap;padding:22px 0 0}
+.stat.filterable{cursor:pointer;border-radius:4px;padding:4px 8px;margin:-4px 26px -4px -8px;transition:background .12s ease}
+.stat.filterable:hover{background:#F5F7F8}
+.stat.filter-active{background:var(--warn-bg)}
+.stat.filter-active .l{color:var(--warn)}
 .cat-groups{padding:20px 0 0}
 .cat-group{margin-bottom:26px}
 .cat-group-head{display:flex;align-items:baseline;gap:10px;padding-bottom:8px;border-bottom:2px solid var(--ink)}
