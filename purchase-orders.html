@@ -465,7 +465,7 @@
   function renderReceiveForm(po, lines) {
     receiveLines = lines.map(l => ({
       lineId: l.obj.ID, rowNumber: l.rowNumber, code: l.obj['PRODUCT CODE'], name: productName(l.obj['PRODUCT CODE']),
-      unit: l.obj.UNIT || 'kg', qty: l.obj['QTY ORDERED'], lot: '', bbe: '', isNew: false
+      unit: l.obj.UNIT || 'kg', isNew: false, lots: [{ qty: l.obj['QTY ORDERED'], lot: '', bbe: '' }]
     }));
     const initialSnapshot = JSON.stringify(receiveLines);
     dirtyCheck = () => JSON.stringify(receiveLines) !== initialSnapshot;
@@ -512,11 +512,20 @@
 
     form.onclick = (e) => {
       if (e.target.closest('[data-cancel]')) { guard.guardedClose(); return; }
+      const addLotBtn = e.target.closest('[data-recv-addlot]');
+      if (addLotBtn) {
+        const li = parseInt(addLotBtn.dataset.recvAddlot, 10);
+        receiveLines[li].lots.push({ qty: '', lot: '', bbe: '' });
+        renderReceiveRows();
+        return;
+      }
       const rmBtn = e.target.closest('[data-recv-remove]');
       if (rmBtn) {
-        const idx = parseInt(rmBtn.dataset.recvRemove, 10);
-        if (receiveLines[idx].isNew) receiveLines.splice(idx, 1);
-        else { receiveLines[idx].qty = '0'; receiveLines[idx].lot = ''; receiveLines[idx].bbe = ''; }
+        const [li, lj] = rmBtn.dataset.recvRemove.split(':').map(n => parseInt(n, 10));
+        const line = receiveLines[li];
+        if (line.lots.length > 1) line.lots.splice(lj, 1);
+        else if (line.isNew) receiveLines.splice(li, 1);
+        else line.lots[0] = { qty: '0', lot: '', bbe: '' };
         renderReceiveRows();
         return;
       }
@@ -524,7 +533,7 @@
         const sel = form.querySelector('#po_recvAddProduct');
         const code = sel.value;
         if (!code) { setDlgStatus('Pick a product first.', 'error'); return; }
-        receiveLines.push({ lineId: null, rowNumber: null, code, name: productName(code), unit: 'kg', qty: '', lot: '', bbe: '', isNew: true });
+        receiveLines.push({ lineId: null, rowNumber: null, code, name: productName(code), unit: 'kg', isNew: true, lots: [{ qty: '', lot: '', bbe: '' }] });
         sel.value = '';
         sel.querySelector(`option[value="${CSS.escape(code)}"]`)?.remove();
         setDlgStatus('');
@@ -532,10 +541,12 @@
       }
     };
     const syncField = (e) => {
-      const tr = e.target.closest('tr[data-idx]');
+      const tr = e.target.closest('tr[data-li]');
       const f = e.target.dataset.f;
       if (!tr || !f) return;
-      receiveLines[parseInt(tr.dataset.idx, 10)][f] = e.target.value;
+      const li = parseInt(tr.dataset.li, 10);
+      if (f === 'unit') { receiveLines[li].unit = e.target.value; return; }
+      receiveLines[li].lots[parseInt(tr.dataset.lj, 10)][f] = e.target.value;
     };
     form.oninput = syncField;
     form.onchange = syncField;
@@ -548,16 +559,20 @@
       tbody.innerHTML = `<tr><td colspan="6" class="empty" style="padding:12px;">Nothing left to receive.</td></tr>`;
       return;
     }
-    tbody.innerHTML = receiveLines.map((l, i) => `
-      <tr data-idx="${i}">
-        <td>${escapeHtml(l.name)}${l.isNew ? ' <span class="tag t-chill">Extra</span>' : ''}</td>
-        <td class="num"><input type="number" step="any" data-f="qty" value="${escapeHtml(l.qty)}" style="width:70px;"></td>
-        <td><select data-f="unit" style="width:70px;"><option value="kg"${l.unit === 'kg' ? ' selected' : ''}>kg</option><option value="pc"${l.unit === 'pc' ? ' selected' : ''}>pc</option></select></td>
-        <td><input type="text" data-f="lot" value="${escapeHtml(l.lot)}" placeholder="e.g. H-2831" style="width:110px;"></td>
-        <td><input type="date" data-f="bbe" value="${escapeHtml(l.bbe)}"></td>
-        <td><button type="button" class="btn ghost sm" data-recv-remove="${i}">Remove</button></td>
+    tbody.innerHTML = receiveLines.map((l, li) => l.lots.map((lot, lj) => {
+      const first = lj === 0;
+      const last = lj === l.lots.length - 1;
+      return `
+      <tr data-li="${li}" data-lj="${lj}">
+        ${first ? `<td rowspan="${l.lots.length}">${escapeHtml(l.name)}${l.isNew ? ' <span class="tag t-chill">Extra</span>' : ''}</td>` : ''}
+        <td class="num"><input type="number" step="any" data-f="qty" value="${escapeHtml(lot.qty)}" style="width:70px;"></td>
+        ${first ? `<td rowspan="${l.lots.length}"><select data-f="unit" style="width:70px;"><option value="kg"${l.unit === 'kg' ? ' selected' : ''}>kg</option><option value="pc"${l.unit === 'pc' ? ' selected' : ''}>pc</option></select></td>` : ''}
+        <td><input type="text" data-f="lot" value="${escapeHtml(lot.lot)}" placeholder="e.g. H-2831" style="width:110px;"></td>
+        <td><input type="date" data-f="bbe" value="${escapeHtml(lot.bbe)}"></td>
+        <td style="white-space:nowrap;">${last ? `<button type="button" class="btn ghost sm" data-recv-addlot="${li}">+ Lot</button> ` : ''}<button type="button" class="btn ghost sm" data-recv-remove="${li}:${lj}">Remove</button></td>
       </tr>
-    `).join('');
+    `;
+    }).join('')).join('');
   }
 
   async function handleReceiveSubmit(e, po) {
@@ -565,7 +580,12 @@
     const cfg = await ensureAuth(setDlgStatus);
     if (!cfg) return;
 
-    const toReceive = receiveLines.filter(l => parseFloat(l.qty) > 0);
+    const toReceive = [];
+    for (const l of receiveLines) {
+      for (const lot of l.lots) {
+        if (parseFloat(lot.qty) > 0) toReceive.push({ code: l.code, name: l.name, unit: l.unit, qty: lot.qty, lot: lot.lot, bbe: lot.bbe });
+      }
+    }
     for (const l of toReceive) {
       if (!l.lot || !l.lot.trim()) { setDlgStatus(`Enter a lot number for ${l.name}.`, 'error'); return; }
       if (!l.bbe) { setDlgStatus(`Enter a best-before date for ${l.name}.`, 'error'); return; }
@@ -588,14 +608,18 @@
       let polBase = existingLines.length ? existingLines : [['ID']];
       const newLineRows = [];
       for (const l of receiveLines) {
-        const delivered = parseFloat(l.qty) > 0;
+        const receivedLots = l.lots.filter(lot => parseFloat(lot.qty) > 0);
+        const totalQty = receivedLots.reduce((sum, lot) => sum + parseFloat(lot.qty), 0);
+        const delivered = totalQty > 0;
         const status = delivered ? 'Delivered' : 'Not delivered';
+        const lotNumbers = receivedLots.map(lot => lot.lot.trim()).join(', ');
+        const bbeDates = receivedLots.map(lot => lot.bbe).join(', ');
         if (l.isNew) {
           const id = nextId(polBase, 'POL');
           polBase = polBase.concat([[id]]);
-          newLineRows.push([id, po.obj.ID, l.code, '', l.unit, delivered ? l.qty : '', delivered ? l.lot.trim() : '', delivered ? l.bbe : '', status]);
+          newLineRows.push([id, po.obj.ID, l.code, '', l.unit, delivered ? totalQty : '', delivered ? lotNumbers : '', delivered ? bbeDates : '', status]);
         } else {
-          await sheetsUpdateRange(cfg.spreadsheetId, `PurchaseOrderLines!F${l.rowNumber}:I${l.rowNumber}`, [[delivered ? l.qty : '', delivered ? l.lot.trim() : '', delivered ? l.bbe : '', status]], token, 'USER_ENTERED');
+          await sheetsUpdateRange(cfg.spreadsheetId, `PurchaseOrderLines!F${l.rowNumber}:I${l.rowNumber}`, [[delivered ? totalQty : '', delivered ? lotNumbers : '', delivered ? bbeDates : '', status]], token, 'USER_ENTERED');
         }
       }
       if (newLineRows.length) await sheetsAppendRows(cfg.spreadsheetId, 'PurchaseOrderLines!A:I', newLineRows, token);
