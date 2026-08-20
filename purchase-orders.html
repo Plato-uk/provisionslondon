@@ -153,6 +153,29 @@
     return p ? p['Product name'] : code;
   }
 
+  // Products can only be ordered from a supplier as whole items — anything
+  // cut from another product (Products' "Cut from (code)" field) is made
+  // in-house from stock, never bought in directly.
+  function orderableSupplierProducts(supplier) {
+    return products.filter(p => p['Default supplier'] === supplier && !(p['Cut from (code)'] || '').trim());
+  }
+
+  // Case-ordered products (Ordering unit = Case) can only be ordered in
+  // whole cases — the +/- stepper below moves qty by one case at a time,
+  // converted into the product's own tracked unit (kg or pc).
+  function productOrderMeta(p) {
+    const unit = p['Pricing basis'] === 'Per kg' ? 'kg' : 'pc';
+    const perCase = parseFloat(p['Units per case']) || 0;
+    const isCase = p['Ordering unit'] === 'Case' && perCase > 0;
+    const nominalWeight = parseFloat(p['Nominal weight (kg)']) || 1;
+    const step = isCase ? (unit === 'kg' ? perCase * nominalWeight : perCase) : 1;
+    return { unit, isCase, perCase, step };
+  }
+
+  function roundQty(n) {
+    return Math.round(n * 1000) / 1000;
+  }
+
   // ---- load + list ----
 
   async function loadAll() {
@@ -243,25 +266,9 @@
         </div>
 
         <div class="field">
-          <label>Add item</label>
-          <div class="inline">
-            <div class="field" style="flex:2; margin-bottom:0;">
-              <select id="po_addProduct" disabled><option value="">Pick a supplier first…</option></select>
-            </div>
-            <div class="field" style="max-width:90px; margin-bottom:0;">
-              <input type="number" step="any" id="po_addQty" placeholder="Qty">
-            </div>
-            <div class="field" style="max-width:80px; margin-bottom:0;">
-              <select id="po_addUnit"><option value="kg">kg</option><option value="pc">Pieces</option></select>
-            </div>
-            <button type="button" class="btn ghost sm" id="po_addLineBtn">+ Add</button>
-          </div>
+          <label>Products</label>
+          <div id="po_productPicker"></div>
         </div>
-
-        <table class="form" id="po_linesTable">
-          <thead><tr><th>Product</th><th class="num">Qty</th><th>Unit</th><th></th></tr></thead>
-          <tbody></tbody>
-        </table>
 
         <div class="field" style="margin-top:12px;">
           <label>Notes</label>
@@ -274,13 +281,11 @@
         <button type="submit" class="btn" id="poSubmitBtn">Create PO</button>
       </div>
     `;
-    renderDraftLines();
     dateRangePicker = createDateRangePicker({ mount: '#po_dateRange' });
 
     const supplierSel = form.querySelector('#po_supplier');
-    const addProductSel = form.querySelector('#po_addProduct');
     enhanceSelect(supplierSel);
-    enhanceSelect(addProductSel); // its options get rewritten per supplier — the enhancement resyncs on its own
+    renderProductPicker(supplierSel.value);
 
     dirtyCheck = () => !!supplierSel.value || draftLines.length > 0
       || !!form.querySelector('#po_notes').value.trim()
@@ -288,58 +293,98 @@
 
     form.onchange = (e) => {
       if (e.target !== supplierSel) return;
-      const supplier = supplierSel.value;
       draftLines = []; // staged lines belonged to the old supplier's catalog
-      renderDraftLines();
-      if (!supplier) {
-        addProductSel.innerHTML = `<option value="">Pick a supplier first…</option>`;
-        addProductSel.disabled = true;
-        return;
-      }
-      const supplierProducts = products.filter(p => p['Default supplier'] === supplier);
-      addProductSel.innerHTML = supplierProducts.length
-        ? `<option value="">Select a product…</option>` + supplierProducts.map(p => `<option value="${escapeHtml(p['Product code'])}">${escapeHtml(p['Product name'])}</option>`).join('')
-        : `<option value="">No products set up for this supplier</option>`;
-      addProductSel.disabled = !supplierProducts.length;
+      renderProductPicker(supplierSel.value);
     };
 
     form.onclick = (e) => {
       if (e.target.closest('[data-cancel]')) { guard.guardedClose(); return; }
-      if (e.target.closest('#po_addLineBtn')) {
-        const code = addProductSel.value;
-        const qtyInput = form.querySelector('#po_addQty');
-        const qty = parseFloat(qtyInput.value);
-        const unit = form.querySelector('#po_addUnit').value;
-        if (!code) { setDlgStatus('Pick a product first.', 'error'); return; }
-        if (!qty || qty <= 0) { setDlgStatus('Enter a quantity.', 'error'); return; }
-        if (draftLines.some(l => l.code === code)) { setDlgStatus('That product is already on this PO — remove it first to change the quantity.', 'error'); return; }
-        draftLines.push({ code, name: productName(code), qty, unit });
-        qtyInput.value = '';
-        setDlgStatus('');
-        renderDraftLines();
-        return;
-      }
-      const rmBtn = e.target.closest('[data-remove-line]');
-      if (rmBtn) { draftLines.splice(parseInt(rmBtn.dataset.removeLine, 10), 1); renderDraftLines(); }
+      const stepBtn = e.target.closest('[data-step]');
+      if (stepBtn) { adjustDraftQty(stepBtn.dataset.code, parseInt(stepBtn.dataset.step, 10)); return; }
     };
 
     form.onsubmit = handleCreateSubmit;
   }
 
-  function renderDraftLines() {
-    const tbody = form.querySelector('#po_linesTable tbody');
-    if (!draftLines.length) {
-      tbody.innerHTML = `<tr><td colspan="4" class="empty" style="padding:12px;">No items added yet.</td></tr>`;
+  function renderProductPicker(supplier) {
+    const mount = form.querySelector('#po_productPicker');
+    if (!supplier) {
+      mount.innerHTML = `<div class="empty" style="padding:12px 0;">Pick a supplier first.</div>`;
       return;
     }
-    tbody.innerHTML = draftLines.map((l, i) => `
-      <tr>
-        <td>${escapeHtml(l.name)}</td>
-        <td class="num">${escapeHtml(l.qty)}</td>
-        <td>${unitLabel(l.unit)}</td>
-        <td><button type="button" class="btn ghost sm" data-remove-line="${i}">Remove</button></td>
-      </tr>
+    const supplierProducts = orderableSupplierProducts(supplier);
+    if (!supplierProducts.length) {
+      mount.innerHTML = `<div class="empty" style="padding:12px 0;">No orderable products set up for this supplier — anything cut from another product doesn't show here.</div>`;
+      return;
+    }
+    const byCategory = new Map();
+    supplierProducts
+      .slice()
+      .sort((a, b) => a['Product name'].localeCompare(b['Product name']))
+      .forEach(p => {
+        const cat = p['Category'] || 'Uncategorised';
+        if (!byCategory.has(cat)) byCategory.set(cat, []);
+        byCategory.get(cat).push(p);
+      });
+    mount.innerHTML = [...byCategory.keys()].sort().map(cat => `
+      <div class="cat-group">
+        <div class="cat-group-head"><span class="g-name">${escapeHtml(cat)}</span><span class="g-count">${byCategory.get(cat).length}</span></div>
+        ${byCategory.get(cat).map(productPickerRowHtml).join('')}
+      </div>
     `).join('');
+  }
+
+  function productPickerRowHtml(p) {
+    const code = p['Product code'];
+    const meta = productOrderMeta(p);
+    const line = draftLines.find(l => l.code === code);
+    const qty = line ? line.qty : 0;
+    const photoUrl = (p['Photo URL'] || '').toString().trim();
+    const photoHtml = photoUrl
+      ? `<img class="cr-photo" src="${escapeHtml(photoUrl)}" alt="" loading="lazy">`
+      : `<span class="cr-photo"></span>`;
+    const subText = [p['Producer'], meta.isCase ? `${meta.perCase} × ${meta.unit === 'kg' ? (parseFloat(p['Nominal weight (kg)']) || '?') + 'kg' : '1 piece'} per case` : `Ordered per ${meta.unit === 'kg' ? 'kg' : 'piece'}`].filter(Boolean).join(' · ');
+    return `
+      <div class="cat-row picker-row" data-code="${escapeHtml(code)}">
+        ${photoHtml}
+        <div class="cr-info">
+          <div class="cr-name-line"><span class="cr-name">${escapeHtml(p['Product name'])}</span></div>
+          <div class="cr-sub">${escapeHtml(subText)}</div>
+        </div>
+        <div class="cr-stepper">
+          <button type="button" class="stepper-btn" data-step="-1" data-code="${escapeHtml(code)}" ${qty <= 0 ? 'disabled' : ''} aria-label="Remove one">−</button>
+          <span class="stepper-qty">${stepperQtyHtml(qty, meta)}</span>
+          <button type="button" class="stepper-btn" data-step="1" data-code="${escapeHtml(code)}" aria-label="Add one">+</button>
+        </div>
+      </div>`;
+  }
+
+  function stepperQtyHtml(qty, meta) {
+    if (qty <= 0) return '—';
+    if (meta.isCase) {
+      const cases = roundQty(qty / meta.step);
+      return `${cases} case${cases === 1 ? '' : 's'}<span class="stepper-sub">${qty}${unitLabel(meta.unit)}</span>`;
+    }
+    return `${qty} ${unitLabel(meta.unit)}`;
+  }
+
+  function adjustDraftQty(code, dir) {
+    const p = products.find(pr => pr['Product code'] === code);
+    if (!p) return;
+    const meta = productOrderMeta(p);
+    const line = draftLines.find(l => l.code === code);
+    const qty = Math.max(0, roundQty((line ? line.qty : 0) + dir * meta.step));
+    if (qty <= 0) {
+      draftLines = draftLines.filter(l => l.code !== code);
+    } else if (line) {
+      line.qty = qty;
+    } else {
+      draftLines.push({ code, name: p['Product name'], qty, unit: meta.unit });
+    }
+    const row = form.querySelector(`.picker-row[data-code="${CSS.escape(code)}"]`);
+    if (!row) return;
+    row.querySelector('.stepper-qty').innerHTML = stepperQtyHtml(qty, meta);
+    row.querySelector('[data-step="-1"]').disabled = qty <= 0;
   }
 
   async function handleCreateSubmit(e) {
