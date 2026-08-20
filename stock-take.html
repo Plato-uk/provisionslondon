@@ -10,6 +10,22 @@
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=Roboto+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/style.css?v=11">
 <link rel="icon" type="image/png" href="img/favicon.png">
+<style>
+  /* Stock take print sheet: black & white, landscape, two columns per page —
+     packs as many products as possible so fewer sheets are needed on the floor. */
+  @media print {
+    @page { size: landscape; margin: 12mm; }
+    #printSheet { display: block; column-count: 2; column-gap: 24px; }
+    #printSheet .pt-item { break-inside: avoid; border-bottom: 1px solid #000; padding: 5px 0 6px; }
+    #printSheet .pt-row1 { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+    #printSheet .pt-code { font-family: 'Roboto Mono', monospace; font-weight: 700; font-size: 11.5px; color: #000; white-space: nowrap; }
+    #printSheet .pt-name { font-size: 12px; flex: 1; margin: 0 8px; color: #000; }
+    #printSheet .pt-cat { font-size: 10px; color: #000; text-transform: uppercase; letter-spacing: .04em; white-space: nowrap; }
+    #printSheet .pt-lots { font-family: 'Roboto Mono', monospace; font-size: 10px; color: #000; margin-top: 2px; }
+    #printSheet .pt-row3 { display: flex; justify-content: space-between; align-items: center; margin-top: 4px; font-family: 'Roboto Mono', monospace; font-size: 11px; color: #000; }
+    #printSheet .pt-blank { display: inline-block; width: 70px; height: 1em; border-bottom: 1px solid #000; margin-left: 6px; vertical-align: bottom; }
+  }
+</style>
 </head>
 <body>
 
@@ -69,7 +85,7 @@
       </div>
     </div>
     <h2 class="print-only" id="printHeading" style="margin-bottom:10px;"></h2>
-    <div class="panel"><div class="scroll" style="overflow-x:auto;">
+    <div class="panel no-print"><div class="scroll" style="overflow-x:auto;">
       <table id="stTable">
         <thead><tr>
           <th></th><th>Product</th><th>Category</th><th class="num">System qty</th><th class="num">Counted qty</th><th class="num">Variance</th>
@@ -77,6 +93,7 @@
         <tbody></tbody>
       </table>
     </div></div>
+    <div id="printSheet" class="print-only"></div>
   </div>
 </main>
 
@@ -113,6 +130,7 @@
   let lines = [];         // [{ rowNumber, obj }] from StockTakeLines for the active stock take
   let products = [];
   let productByCode = {};
+  let lotsByProduct = {}; // Product code -> [{ batch, remaining, unit }] currently in stock, for the print sheet
   let searchTerm = '';
   let editingLine = null; // rowNumber currently mid-inline-edit, or null
   let rapidQueue = [];
@@ -195,8 +213,13 @@
       const active = stockTakes.find(r => r.obj.STATUS === 'In Progress');
       if (active) {
         stockTake = active;
-        const lineRows = await sheetsGet(cfg.spreadsheetId, 'StockTakeLines!A:Z', token);
+        const [lineRows, deliveryRows, allocationRows] = await Promise.all([
+          sheetsGet(cfg.spreadsheetId, 'StockTakeLines!A:Z', token),
+          sheetsGet(cfg.spreadsheetId, 'Deliveries!A:Z', token),
+          sheetsGet(cfg.spreadsheetId, 'Allocations!A:Z', token)
+        ]);
         lines = toRowObjects(lineRows).filter(l => l.obj['STOCK TAKE ID'] === active.obj.ID);
+        lotsByProduct = computeLotsByProduct(deliveryRows, allocationRows);
         document.getElementById('startCard').style.display = 'none';
         document.getElementById('activeCard').style.display = 'block';
         renderActive();
@@ -211,6 +234,33 @@
     } catch (err) {
       setStatus('Error loading: ' + err.message, 'error');
     }
+  }
+
+  // Remaining stock per product, broken down by batch/lot (Deliveries minus
+  // Allocations, same logic as the Stock page) — lets the print sheet call
+  // out which lots to check when a product has more than one in stock.
+  function computeLotsByProduct(deliveryRows, allocationRows) {
+    const deliveries = toObjects(deliveryRows);
+    const allocations = toObjects(allocationRows);
+    const key = (code, batch) => `${code}${batch}`;
+    const batches = {};
+    deliveries.forEach(d => {
+      const k = key(d['PRODUCT CODE'], d['BATCH/LOT NUMBER']);
+      if (!batches[k]) batches[k] = { code: d['PRODUCT CODE'], batch: d['BATCH/LOT NUMBER'], unit: d.UNIT || 'kg', received: 0, allocated: 0 };
+      batches[k].received += parseFloat(d['QTY RECEIVED']) || 0;
+    });
+    allocations.forEach(a => {
+      const k = key(a['PRODUCT CODE'], a['BATCH/LOT NUMBER']);
+      if (batches[k]) batches[k].allocated += parseFloat(a['QTY ALLOCATED']) || 0;
+    });
+    const byProduct = {};
+    Object.values(batches).forEach(b => {
+      const remaining = b.received - b.allocated;
+      if (remaining <= 0.0001) return;
+      (byProduct[b.code] = byProduct[b.code] || []).push({ batch: b.batch, remaining, unit: b.unit });
+    });
+    Object.values(byProduct).forEach(list => list.sort((a, b) => a.batch.localeCompare(b.batch)));
+    return byProduct;
   }
 
   function renderHistory(past) {
@@ -342,6 +392,31 @@
     }).join('');
   }
 
+  // Print sheet: same filtered/sorted rows as the on-screen table, laid out
+  // as compact black & white blocks (see the print stylesheet in <head>) —
+  // no variance column, and lot codes only when a product has more than one
+  // lot in stock right now (nothing to disambiguate otherwise).
+  function renderPrintSheet() {
+    const sheet = document.getElementById('printSheet');
+    const view = viewRows();
+    if (!view.length) { sheet.innerHTML = ''; return; }
+    sheet.innerHTML = view.map(l => {
+      const code = l.obj['PRODUCT CODE'];
+      const sysQty = (parseFloat(l.obj['SYSTEM QTY']) || 0).toFixed(2);
+      const lots = lotsByProduct[code] || [];
+      const lotsHtml = lots.length > 1
+        ? `<div class="pt-lots">Lots: ${lots.map(x => `${escapeHtml(x.batch)} (${x.remaining.toFixed(2)}${escapeHtml(x.unit)})`).join(' &middot; ')}</div>`
+        : '';
+      return `<div class="pt-item">
+        <div class="pt-row1"><span class="pt-code">${escapeHtml(code)}</span><span class="pt-name">${escapeHtml(l.prod['Product name'] || '')}</span><span class="pt-cat">${escapeHtml(l.prod['Category'] || '')}</span></div>
+        ${lotsHtml}
+        <div class="pt-row3"><span>Sys: ${sysQty} ${escapeHtml(l.obj.UNIT)}</span><span>Count: <span class="pt-blank"></span></span></div>
+      </div>`;
+    }).join('');
+  }
+
+  window.addEventListener('beforeprint', renderPrintSheet);
+
   document.querySelector('#stTable').addEventListener('click', (e) => {
     const td = e.target.closest('td[data-col="counted"]');
     if (!td || editingLine) return;
@@ -463,7 +538,7 @@
   document.getElementById('startBtn').addEventListener('click', startStockTake);
   document.getElementById('completeBtn').addEventListener('click', completeStockTake);
   document.getElementById('reloadBtn').addEventListener('click', loadAll);
-  document.getElementById('printBtn').addEventListener('click', () => window.print());
+  document.getElementById('printBtn').addEventListener('click', () => { renderPrintSheet(); window.print(); });
 
   window.addEventListener('load', loadAll);
 </script>
