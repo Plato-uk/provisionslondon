@@ -23,6 +23,12 @@
 //                            // (e.g. Products.CODE) — that key field is
 //                            // shown but locked once editing an existing
 //                            // row, since other tabs may reference it.
+//   hideAddButton: true,     // opt-in: suppress the toolbar's own "+ Add"
+//                            // button/dialog — for a tab whose rows are only
+//                            // ever created through a bespoke flow elsewhere
+//                            // on the page (e.g. Orders — see orders.html),
+//                            // while this table still handles listing,
+//                            // viewing, editing and deleting them.
 //   fields: [                // one entry per header, in header order
 //     { key:'NAME', label:'Name', type:'text', required:true, primary:true }, // primary: this cell (and any 'image' cell) opens the detail dialog
 //     { key:'TIER', label:'Tier', type:'text', placeholder:'e.g. Standard' },
@@ -33,7 +39,6 @@
 //     { key:'COST', label:'Cost', type:'number', format:'currency' },
 //     { key:'PHOTO', label:'Photo', type:'image' },             // plain URL input; renders as a table thumbnail
 //   ],
-//   sample: [ [...row values in header order, 'auto' for the id col...], ... ]
 //   inlineEdit: true,         // opt-in: click a cell to edit it in place instead
 //                              // of opening the dialog (see below) — off by
 //                              // default so other tables keep today's
@@ -132,7 +137,7 @@
 //     as a guaranteed fallback if no cell in a given row happens to do so.
 
 async function initCrudTable(config) {
-  const { mount, title, tab, headers, autoId, fields, sample, inlineEdit, subtitle, groupBy, catalogue, onLoad } = config;
+  const { mount, title, tab, headers, autoId, fields, inlineEdit, subtitle, groupBy, catalogue, onLoad, hideAddButton } = config;
   // Optional category-style grouping: rows are bucketed by this header's
   // value and each bucket gets a `tr.group` heading row. Display-only —
   // it never touches the sheet's row order. Suppressed while a column
@@ -185,9 +190,8 @@ async function initCrudTable(config) {
   ` : `
     <div class="panel-h" style="border:none; background:none; padding:0 0 8px;">
       <h3 style="text-transform:none; letter-spacing:normal; font-size:15px; color:var(--ink); font-weight:600;">${escapeHtml(title)}</h3>
-      <button type="button" class="btn add-btn sm" id="${tab}_addBtn" style="margin:0;">+ Add ${escapeHtml(singular)}</button>
+      ${hideAddButton ? '' : `<button type="button" class="btn add-btn sm" id="${tab}_addBtn" style="margin:0;">+ Add ${escapeHtml(singular)}</button>`}
       <button type="button" class="btn ghost sm" id="${tab}_reload" style="margin:0;">Reload</button>
-      ${sample ? `<button type="button" class="btn ghost sm" id="${tab}_seed" style="margin:0;">Load sample data</button>` : ''}
     </div>
     <div class="filter-bar">
       <input type="search" id="${tab}_search" placeholder="Search ${escapeHtml(title.toLowerCase())}...">
@@ -415,6 +419,14 @@ async function initCrudTable(config) {
       return url
         ? `<img src="${escapeHtml(url)}" alt="" loading="lazy" style="${box}object-fit:cover;display:block;">`
         : `<span style="${box}display:inline-block;"></span>`;
+    }
+    // A textarea's full text shown inline would blow out row height —
+    // a small icon carries the note and reveals it via the native title
+    // tooltip on hover, keeping every row the same height.
+    if (field && field.type === 'textarea') {
+      const v = (value || '').toString().trim();
+      if (!v) return '';
+      return `<span class="note-icon" title="${escapeHtml(v)}"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h9l5 5v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M15 3v5h5"/><path d="M8 13h8M8 17h5"/></svg></span>`;
     }
     return escapeHtml(value);
   }
@@ -897,7 +909,7 @@ async function initCrudTable(config) {
     guard.arm();
   }
 
-  if (!catalogue) root.querySelector(`#${tab}_addBtn`).addEventListener('click', openAddDialog);
+  if (!catalogue && !hideAddButton) root.querySelector(`#${tab}_addBtn`).addEventListener('click', openAddDialog);
   // Both the header's close button and the footer's Cancel button carry
   // data-cancel — wire every match, not just the first.
   form.querySelectorAll('[data-cancel]').forEach(el => el.addEventListener('click', () => guard.guardedClose()));
@@ -946,39 +958,6 @@ async function initCrudTable(config) {
       setDlgStatus('Error: ' + err.message, 'error');
     }
   });
-
-  if (sample) {
-    root.querySelector(`#${tab}_seed`).addEventListener('click', async () => {
-      const cfg = await ensureAuth();
-      if (!cfg) return;
-      setStatus('Loading sample data...');
-      try {
-        // Column A is often a generated ID (not a stable key sample rows can
-        // be matched against), so instead of trying to dedupe row-by-row,
-        // sample data only ever loads into a tab that has no data rows yet —
-        // simple and impossible to double up.
-        const existing = await sheetsGet(cfg.spreadsheetId, range, token);
-        if (existing.slice(1).length) {
-          setStatus('This table already has data — sample rows weren\'t added, to avoid duplicates.', 'error');
-          return;
-        }
-        let rowsToAdd = sample;
-        if (autoId) {
-          let base = [headers];
-          rowsToAdd = sample.map(r => {
-            const id = nextId(base, autoId);
-            base = base.concat([[id]]);
-            return [id, ...r.slice(1)];
-          });
-        }
-        await sheetsAppendRows(cfg.spreadsheetId, range, rowsToAdd, token);
-        setStatus(`Added ${rowsToAdd.length} sample row(s).`, 'ok');
-        loadRows();
-      } catch (err) {
-        setStatus('Error loading sample data: ' + err.message, 'error');
-      }
-    });
-  }
 
   if (!catalogue) root.querySelector(`#${tab}_reload`).addEventListener('click', loadRows);
 

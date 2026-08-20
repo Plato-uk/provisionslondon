@@ -8,10 +8,15 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=Roboto+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/style.css?v=13">
+<link rel="stylesheet" href="css/style.css?v=15">
 <link rel="icon" type="image/png" href="img/favicon.png">
 </head>
 <body>
+
+<div class="user-badge no-print" id="userBadge" style="display:none;">
+  <span class="user-badge-name" id="userBadgeName"></span>
+  <button type="button" class="user-badge-logout" id="userBadgeLogout">Log out</button>
+</div>
 
 <div class="app-sidebar">
   <a class="brand" href="index.html" title="Provisions UK"><img src="img/logo.png" alt="Provisions"></a>
@@ -43,7 +48,7 @@
   <h2>Dashboard</h2>
   <p class="sub">Internal stock &amp; order operations tool for Provisions UK.</p>
 
-  <div class="panel">
+  <div class="panel" id="authPanel">
     <div class="panel-b" id="authArea">
       <div class="inline">
         <div class="field">
@@ -115,7 +120,7 @@
   </div>
 </main>
 
-<script src="js/config.js?v=1"></script>
+<script src="js/config.js?v=2"></script>
 <script src="js/sheets.js?v=1"></script>
 <script src="js/util.js?v=1"></script>
 <script>
@@ -130,9 +135,14 @@
 
   function refreshSignedInUI() {
     const token = tryResumeSession();
+    const authPanel = document.getElementById('authPanel');
     if (token) {
       setStatus('Signed in — session active.', 'ok');
+      authPanel.style.display = 'none';
+    } else {
+      authPanel.style.display = '';
     }
+    initUserBadge();
   }
 
   // Turns a sheet's [header, ...rows] into plain objects keyed by header text.
@@ -458,7 +468,12 @@
     if (!clientId) { setStatus('Paste your OAuth Client ID first.', 'error'); return; }
     tokenClient = initGoogleAuth({
       clientId,
-      onToken: () => { setStatus('Signed in — session active.', 'ok'); loadDashboard(); },
+      onToken: () => {
+        setStatus('Signed in — session active.', 'ok');
+        document.getElementById('authPanel').style.display = 'none';
+        initUserBadge();
+        loadDashboard();
+      },
       onError: (err) => setStatus('Sign-in error: ' + err, 'error')
     });
     tokenClient.requestAccessToken();

@@ -8,10 +8,15 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=Roboto+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/style.css?v=13">
+<link rel="stylesheet" href="css/style.css?v=15">
 <link rel="icon" type="image/png" href="img/favicon.png">
 </head>
 <body>
+
+<div class="user-badge no-print" id="userBadge" style="display:none;">
+  <span class="user-badge-name" id="userBadgeName"></span>
+  <button type="button" class="user-badge-logout" id="userBadgeLogout">Log out</button>
+</div>
 
 <div class="app-sidebar">
   <a class="brand" href="index.html" title="Provisions UK"><img src="img/logo.png" alt="Provisions"></a>
@@ -57,7 +62,7 @@
   <div id="tabsList"></div>
 </main>
 
-<script src="js/config.js?v=1"></script>
+<script src="js/config.js?v=2"></script>
 <script src="js/sheets.js?v=1"></script>
 <script>
   // Data model:
@@ -98,7 +103,12 @@
   //                a specific lot later, and QTY RECEIVED is the quantity.
   //                PO ID traces a row back to the purchase order it was
   //                received against, when there is one.
-  //   Orders / OrderLines — a customer order and its line items.
+  //   Orders / OrderLines — a customer order and its line items. Orders are
+  //                created via the "+ Add order" wizard on orders.html
+  //                (pick customer + delivery date, search products by name
+  //                or code, confirm), which writes both tabs together and
+  //                records PLACED BY; the tables on that page are then used
+  //                to view/edit them (status progression etc.) afterwards.
   //   Allocations — links an order line to a specific delivered batch/lot
   //                and quantity. This is the stock-OUT event. Real-time
   //                availability = SUM(Deliveries.qty) - SUM(Allocations.qty)
@@ -151,7 +161,7 @@
     },
     {
       title: 'Orders',
-      headers: ['ID','DATE','CUSTOMER','DELIVERY DATE','STATUS','NOTES']
+      headers: ['ID','DATE','CUSTOMER','DELIVERY DATE','STATUS','NOTES','PLACED BY']
     },
     {
       title: 'OrderLines',

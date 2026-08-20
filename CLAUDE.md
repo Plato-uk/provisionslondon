@@ -10,14 +10,22 @@ models, sheet schemas, or conventions between the two.
   client-side with Google OAuth (`js/config.js`, `js/sheets.js`). OAuth scope
   is `spreadsheets` plus `drive.file` (restricted — the app only ever sees
   files it creates itself) for the Products photo upload feature
-  (`js/drive.js`).
+  (`js/drive.js`), plus `userinfo.email`/`userinfo.profile` (non-sensitive)
+  so the signed-in user's name/email can be shown in the top-right badge
+  present on every page (also the logout control — see `initUserBadge()` in
+  `js/config.js`).
 - Generic CRUD table framework in `js/crud-page.js` — every flat list page
   (Products, Suppliers, Customers, Orders, OrderLines, Allocations)
   configures one `initCrudTable()` call instead of hand-rolling
   fetch/append/update/delete logic. Read the comment block at the top of
   that file before adding a new page or field type. Purchase Orders is
   bespoke, hand-rolled JS (`purchase-orders.html`) — its line-item/date-range
-  UX doesn't fit the generic single-flat-table model.
+  UX doesn't fit the generic single-flat-table model. Orders' *creation* is
+  similarly bespoke (the "+ Add order" wizard in `orders.html`, which writes
+  an Orders row plus its OrderLines rows together in one step and passes
+  `hideAddButton: true` to the Orders table's own `initCrudTable()` call) —
+  but viewing/editing/deleting Orders, OrderLines and Allocations afterwards
+  still goes through the generic framework, unchanged.
 
 ## Sheet schema (see `setup.html`'s `REQUIRED_TABS` for the source of truth)
 - **Products** — item master, one row per SKU keyed by `Product code`
@@ -33,8 +41,9 @@ models, sheet schemas, or conventions between the two.
 - **Deliveries** — goods-in, linked to Products by `PRODUCT CODE` and
   tracked by batch/lot number + best-before date. `PO ID` traces a row back
   to the purchase order it was received against, when there is one.
-- **Orders** / **OrderLines** / **Allocations** — order header, order lines,
-  and stock allocated to each line (FEFO-aware — see Allocations page logic).
+- **Orders** / **OrderLines** / **Allocations** — order header (including
+  `PLACED BY`, appended to Orders' headers), order lines, and stock
+  allocated to each line (FEFO-aware — see Allocations page logic).
 - **StockTakes** / **StockTakeLines** — a physical count session
   (`stock-take.html`). Starting one snapshots every Active product's
   computed on-hand qty into StockTakeLines (`SYSTEM QTY`) with a blank
