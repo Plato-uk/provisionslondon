@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=Roboto+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/style.css?v=8">
+<link rel="stylesheet" href="css/style.css?v=10">
 <link rel="icon" type="image/png" href="img/favicon.png">
 </head>
 <body>
@@ -30,18 +30,20 @@
 </div>
 
 <main>
-  <h2>Products</h2>
-  <p class="sub">The item master — one row per SKU, keyed by your own product code. Mirrors the Xero-linked schema: cost/landed cost, cut-to-order fields, and Xero item/account codes for accounting sync.</p>
+  <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:32px; flex-wrap:wrap;">
+    <div style="max-width:60ch;">
+      <span class="kicker">Item master</span>
+      <h2>Products</h2>
+      <p class="sub" id="productsSubtitle">One row per SKU, keyed by your own product code. Mirrors the Xero-linked schema: cost/landed cost, cut-to-order fields, and Xero item/account codes for accounting sync.</p>
+    </div>
+    <div id="productsActions" style="display:none; gap:9px; flex:none; padding-top:8px;">
+      <button type="button" class="btn ghost" id="bulkPhotosBtn" title="Select image files named after product codes (e.g. CCS050.jpg) — matched files upload to Drive and are set as that product's photo.">Bulk photos</button>
+      <button type="button" class="btn" id="addProductBtn">+ Add product</button>
+    </div>
+  </div>
 
   <div id="signedOutNotice" class="note" style="display:none;">
     Not signed in — go to the <a href="index.html" style="color:inherit; text-decoration:underline;">Dashboard</a> to sign in. Your session will carry over here.
-  </div>
-
-  <div class="panel" id="bulkPhotosPanel" style="display:none;">
-    <div class="panel-b" style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
-      <button type="button" class="btn ghost sm" id="bulkPhotosBtn" style="margin:0;">Bulk upload photos</button>
-      <span class="mono" style="font-size:12px; color:var(--steel);">Select image files named after product codes (e.g. CCS050.jpg) — matched files upload to Drive and are set as that product's photo.</span>
-    </div>
   </div>
 
   <div id="productsMount"></div>
@@ -77,26 +79,64 @@
 <script src="js/dialog-guard.js?v=1"></script>
 <script src="js/drive.js?v=1"></script>
 <script src="js/searchable-select.js?v=1"></script>
-<script src="js/crud-page.js?v=7"></script>
+<script src="js/crud-page.js?v=8"></script>
 <script>
   function requireAuth() {
     const cfg = getStoredConfig();
     const token = tryResumeSession();
     const ok = !!(token && cfg.spreadsheetId);
     document.getElementById('signedOutNotice').style.display = ok ? 'none' : 'block';
-    document.getElementById('bulkPhotosPanel').style.display = ok ? 'block' : 'none';
+    document.getElementById('productsActions').style.display = ok ? 'flex' : 'none';
     return ok;
+  }
+
+  // ---- Catalogue-mode field logic — Products-specific, so it lives here
+  // rather than in the generic js/crud-page.js.
+
+  function packLabel(pick) {
+    const wkg = pick('Nominal weight (kg)');
+    const wTxt = wkg ? `${wkg}kg` : '';
+    if (pick('Ordering unit') === 'Case' && pick('Units per case')) return `${pick('Units per case')} × ${wTxt}`;
+    return wTxt ? `1 × ${wTxt}` : (pick('Ordering unit') || '');
+  }
+
+  function currency(v) {
+    const n = parseFloat(v);
+    return isNaN(n) ? '—' : `£${n.toFixed(2)}`;
+  }
+
+  // GP at list is a formula-driven text cell (e.g. "31.20%"), not a plain
+  // number — parseFloat happily ignores the trailing '%'.
+  function gpInfo(pick) {
+    const n = parseFloat(pick('GP at list'));
+    const has = !isNaN(n);
+    return {
+      value: has ? n : null,
+      text: has ? `${n.toFixed(1)}%` : '—',
+      color: !has ? 'var(--mist)' : n < 20 ? 'var(--crit)' : n < 28 ? 'var(--yell)' : 'var(--ok)'
+    };
+  }
+
+  // Priority order matches how the design reads a row at a glance: a
+  // missing Xero code blocks accounting sync, low/missing GP is a pricing
+  // problem — only the first is shown on the row card, but all count
+  // toward "Needs attention".
+  function rowBadges(pick) {
+    const list = [];
+    if (!pick('Xero item code')) list.push({ text: 'No Xero code', tone: 'warn' });
+    const g = gpInfo(pick);
+    if (g.value !== null && g.value < 20) list.push({ text: 'GP low', tone: 'crit' });
+    if (g.value === null) list.push({ text: 'GP missing', tone: 'yell' });
+    return list;
   }
 
   window.addEventListener('load', () => {
     if (!requireAuth()) return;
 
-    initCrudTable({
+    const products = initCrudTable({
       mount: '#productsMount',
       title: 'Products',
-      subtitle: 'One row per SKU — cost, cut-to-order fields, and Xero sync codes.',
       tab: 'Products',
-      groupBy: 'Category',
       headers: ['Product code','Product name','Category','Default supplier','Producer','Storage','Ordering unit','Units per case','Pricing basis','Nominal weight (kg)','Cost price £','Landed cost £','GP at list','Tolerance band (%)','Cut from (code)','Cut shelf life (days)','Part-cut shelf life (days)','Target pack weight (kg)','Xero item code','Xero account code','VAT rate','Active','Sellable','Notes','Photo URL'],
       autoId: null,
       fields: [
@@ -126,10 +166,54 @@
         { key: 'Notes', label: 'Notes', type: 'textarea' },
         { key: 'Photo URL', label: 'Photo', type: 'image', placeholder: 'https://... — usually set via Bulk upload photos' }
       ],
-      inlineEdit: true
+      inlineEdit: true,
+      catalogue: {
+        tabsBy: 'Category',
+        groupBy: 'Category',
+        photo: 'Photo URL',
+        name: 'Product name',
+        tag: (pick) => ({ text: pick('Storage'), on: pick('Storage') === 'Chilled' }),
+        sub: (pick) => [pick('Producer'), pick('Default supplier')].filter(Boolean).join(' · '),
+        meta: (pick) => [pick('Product code'), packLabel(pick)],
+        prices: [
+          { label: 'Cost', get: (pick) => currency(pick('Cost price £')) },
+          { label: 'Landed', get: (pick) => currency(pick('Landed cost £')), big: true }
+        ],
+        gpLabel: 'GP',
+        gp: (pick) => { const g = gpInfo(pick); return { text: g.text, color: g.color }; },
+        badges: rowBadges,
+        stats: (rows, get) => {
+          const pick = (r) => (key) => get(r.values, key);
+          const active = rows.filter(r => (pick(r)('Active') || '').toUpperCase() === 'YES').length;
+          const gps = rows.map(r => gpInfo(pick(r)).value).filter(v => v !== null);
+          const avgGp = gps.length ? gps.reduce((a, b) => a + b, 0) / gps.length : null;
+          const needsAttn = rows.filter(r => rowBadges(pick(r)).length > 0).length;
+          const cats = new Set(rows.map(r => pick(r)('Category')).filter(Boolean));
+          return [
+            { l: 'Active', n: String(active), u: `of ${rows.length}` },
+            { l: 'Average GP', n: avgGp === null ? '—' : `${avgGp.toFixed(1)}%`, u: 'at list' },
+            { l: 'Needs attention', n: String(needsAttn), u: 'records', tone: needsAttn > 0 ? 'warn' : undefined },
+            { l: 'Categories', n: String(cats.size), u: 'in use' }
+          ];
+        },
+        kicker: (pick) => [pick('Category'), pick('Product code')].filter(Boolean).join(' · '),
+        detailSub: (pick) => {
+          const producer = pick('Producer'), supplier = pick('Default supplier');
+          return producer && supplier ? `${producer} · via ${supplier}` : (producer || supplier || '');
+        },
+        emptyTitle: 'Nothing in the catalogue yet',
+        emptySub: 'Add your first product, or use Bulk photos once your SKUs are in.'
+      },
+      onLoad: (rows, get) => {
+        const cats = new Set(rows.map(r => get(r.values, 'Category')).filter(Boolean));
+        document.getElementById('productsSubtitle').textContent =
+          `${rows.length} SKU${rows.length === 1 ? '' : 's'} across ${cats.size} categor${cats.size === 1 ? 'y' : 'ies'}. Click any line to open its record — cost, cut-to-order fields and Xero codes live inside.`;
+      }
     });
 
-    initBulkPhotosUpload();
+    document.getElementById('addProductBtn').addEventListener('click', () => products.then(p => p.openAdd()));
+
+    initBulkPhotosUpload(products);
   });
 
   // Bulk photo upload: match each selected file's name (minus extension) to
@@ -137,7 +221,7 @@
   // folder (js/drive.js), and write the resulting URL into that row's
   // Photo URL cell directly via the Sheets API — this bypasses the crud-page
   // add/edit dialog entirely since it's writing many rows at once.
-  function initBulkPhotosUpload() {
+  function initBulkPhotosUpload(productsTable) {
     const dialog = document.getElementById('photosDialog');
     const fileInput = document.getElementById('photosFileInput');
     const preview = document.getElementById('photosPreview');
@@ -246,8 +330,7 @@
         if (failed.length) summary += ` Failed: ${failed.join('; ')}.`;
         setStatus(summary, (failed.length || unmatched.length) ? 'error' : 'ok');
 
-        const reloadBtn = document.getElementById('Products_reload');
-        if (reloadBtn) reloadBtn.click();
+        productsTable.then(p => p.reload());
       } catch (err) {
         setStatus('Error: ' + err.message, 'error');
       } finally {

@@ -90,6 +90,48 @@ tr.group:first-child td{padding-top:4px}
 tr.group .g-name{font-size:15px;font-weight:700;letter-spacing:-.01em;color:var(--ink)}
 tr.group .g-count{font-family:'Roboto Mono',monospace;font-size:11px;color:var(--mist);margin-left:10px}
 
+/* Catalogue mode — emitted by initCrudTable's `catalogue` option (Products).
+   Category tabs + bare stat figures + grouped card rows, in place of the
+   plain sortable table. See js/crud-page.js's renderCatalogue(). */
+.cat-toolbar{display:flex;align-items:flex-end;justify-content:space-between;gap:24px;flex-wrap:wrap;border-bottom:1px solid #E3E6E9;padding-bottom:0;margin-bottom:0}
+.cat-tabs{display:flex;gap:0;flex-wrap:wrap}
+.cat-tab{display:flex;align-items:center;gap:7px;padding:0 16px 10px;margin-bottom:-1px;border-bottom:2px solid transparent;color:var(--steel);font-size:14px;font-weight:500;cursor:pointer;background:none;border-left:none;border-right:none;border-top:none}
+.cat-tab .n{font-family:'Roboto Mono',monospace;font-size:11px;color:var(--mist)}
+.cat-tab.active{border-bottom-color:var(--ink);color:var(--ink);font-weight:600}
+.cat-tab:hover:not(.active){color:var(--ink)}
+.cat-search{display:flex;align-items:center;gap:8px;padding-bottom:10px}
+.cat-search input[type="search"]{border:none;padding:0;width:170px;font-size:13px;color:var(--ink);background:none}
+.cat-search input[type="search"]::placeholder{color:var(--mist)}
+.cat-search kbd{font-family:'Roboto Mono',monospace;font-size:11px;color:var(--mist);border:1px solid #E3E6E9;border-radius:3px;padding:1px 5px}
+.cat-stats{display:flex;gap:34px;flex-wrap:wrap;padding:22px 0 0}
+.cat-groups{padding:20px 0 0}
+.cat-group{margin-bottom:26px}
+.cat-group-head{display:flex;align-items:baseline;gap:10px;padding-bottom:8px;border-bottom:2px solid var(--ink)}
+.cat-group-head .g-name{font-size:15px;font-weight:700;letter-spacing:-.01em;color:var(--ink)}
+.cat-group-head .g-count{font-family:'Roboto Mono',monospace;font-size:11px;color:var(--mist)}
+.cat-group-head .g-spacer{flex:1}
+.cat-group-head .g-col{font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--mist);font-weight:600;width:110px;text-align:right}
+.cat-group-head .g-col.gp{width:90px}
+.cat-row{display:flex;align-items:center;gap:16px;padding:13px 0;border-bottom:1px solid var(--hair);cursor:pointer;flex-wrap:wrap}
+.cat-row:hover{background:#FBFCFC}
+.cat-row .cr-photo{width:54px;height:54px;border-radius:3px;background:var(--hair);flex:none;object-fit:cover;display:block}
+.cat-row .cr-info{min-width:220px;flex:1}
+.cat-row .cr-name-line{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap}
+.cat-row .cr-name{font-size:16px;font-weight:600;letter-spacing:-.015em;color:var(--ink)}
+.cat-row .cr-sub{font-size:13px;color:var(--steel);margin-top:2px}
+.cat-row .cr-meta{font-family:'Roboto Mono',monospace;font-size:11.5px;color:var(--mist);width:170px;flex:none}
+.cat-row .cr-price{width:110px;text-align:right;font-family:'Roboto Mono',monospace;font-size:13.5px;color:var(--steel);font-variant-numeric:tabular-nums;flex:none}
+.cat-row .cr-price.big{font-size:15px;font-weight:600;color:var(--ink)}
+.cat-row .cr-gp{width:90px;text-align:right;font-family:'Roboto Mono',monospace;font-size:13.5px;font-weight:600;font-variant-numeric:tabular-nums;flex:none}
+
+/* Detail dialog header, richer for catalogue mode: photo + kicker + subline */
+.dlg-h.detail{align-items:flex-start;gap:18px}
+.dlg-h.detail .dlg-photo{width:84px;height:84px;border-radius:3px;background:var(--hair);flex:none;object-fit:cover;display:block}
+.dlg-h.detail .dlg-kicker{font-family:'Roboto Mono',monospace;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--chill)}
+.dlg-h.detail .ttl{margin-top:4px}
+.row.grid3{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:2px 24px}
+.row.grid3 .col.field{min-width:0}
+
 /* Search + column-visibility toolbar above a table */
 .filter-bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 6px}
 .filter-bar input[type="search"]{width:280px}

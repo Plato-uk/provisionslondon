@@ -41,6 +41,43 @@
 //   groupBy: 'Category',      // optional: bucket rows under a heading row
 //                             // keyed on this column's value. Display-only;
 //                             // ignored while a column sort is active.
+//   catalogue: {              // optional: replace the plain sortable table
+//                             // with category tabs + bare stat figures +
+//                             // grouped card rows (see products.html for a
+//                             // full example). Mutually exclusive with the
+//                             // table-specific bits above (groupBy, sort,
+//                             // Columns picker, inline edit) — a catalogue
+//                             // row always opens the detail dialog on click.
+//     tabsBy: 'Category',        // field to build the tab bar + counts from;
+//                                 // tab order follows that field's own
+//                                 // `select` options order when it has one
+//     groupBy: 'Category',       // field the card rows are bucketed under
+//                                 // within the active tab (usually = tabsBy)
+//     photo: 'Photo URL',
+//     name: 'Product name',
+//     tag: (pick) => ({ text: pick('Storage'), on: pick('Storage') === 'Chilled' }),
+//     sub: (pick) => [pick('Producer'), pick('Default supplier')].filter(Boolean).join(' · '),
+//     meta: (pick) => [pick('Product code'), packLabel(pick)],   // mono lines, right of the name
+//     prices: [
+//       { label: 'Cost', get: (pick) => currency(pick('Cost price £')) },
+//       { label: 'Landed', get: (pick) => currency(pick('Landed cost £')), big: true },
+//     ],
+//     gpLabel: 'GP',
+//     gp: (pick) => ({ text: '31.2%', color: '#1F7A44' }),
+//     badges: (pick) => [{ text: 'No Xero code', tone: 'warn' }],  // tone: warn|crit|yell;
+//                                 // only the first shows on the row card
+//     stats: (rows, get) => [{ l: 'Active', n: '231', u: 'SKUs', tone: 'warn' }],
+//     kicker: (pick) => 'Cheese · CCS050',        // dialog header, above the title
+//     detailSub: (pick) => 'Fromagerie Dongé · via Fine Cheese Co',
+//     emptyTitle: 'Nothing in the catalogue yet',
+//     emptySub: 'Add your first product to get started.'
+//   }
+//   onLoad: (rows, get) => { ... },  // optional: fires after each successful
+//                             // load with the fresh rowsData array (each
+//                             // entry `{ rowNumber, values }`) and the same
+//                             // get(values, key) lookup catalogue callbacks
+//                             // use — e.g. to update page-level chrome like
+//                             // a dynamic subtitle with a live SKU count.
 // }
 //
 // fields[i] corresponds to headers[i+1] when autoId is set (headers[0] is
@@ -81,12 +118,22 @@
 //     as a guaranteed fallback if no cell in a given row happens to do so.
 
 async function initCrudTable(config) {
-  const { mount, title, tab, headers, autoId, fields, sample, inlineEdit, subtitle, groupBy } = config;
+  const { mount, title, tab, headers, autoId, fields, sample, inlineEdit, subtitle, groupBy, catalogue, onLoad } = config;
   // Optional category-style grouping: rows are bucketed by this header's
   // value and each bucket gets a `tr.group` heading row. Display-only —
   // it never touches the sheet's row order. Suppressed while a column
   // sort is active, since an explicit sort is a deliberate override.
   const groupColIdx = groupBy ? headers.indexOf(groupBy) : -1;
+  const hIdx = {};
+  headers.forEach((h, i) => { hIdx[h] = i; });
+  // Look up one field's raw value from a row's `values` array by header
+  // name rather than position — what every `catalogue` callback is handed.
+  function get(values, key) {
+    const i = hIdx[key];
+    return i === undefined ? '' : (values[i] ?? '');
+  }
+  let activeTab = null; // catalogue mode only: null = "All"
+  let catCounts = new Map(); // catalogue mode only: tabsBy value -> total row count, unfiltered
   const root = document.querySelector(mount);
   const range = `${tab}!A:${colLetter(headers.length)}`;
   const endCol = colLetter(headers.length);
@@ -103,7 +150,22 @@ async function initCrudTable(config) {
   const refCache = {};
   let inlineEditing = null; // { rowNumber, colIdx, field, original } while a single cell is mid-edit, else null
 
-  root.innerHTML = `
+  root.innerHTML = catalogue ? `
+    <div class="cat-toolbar">
+      <div class="cat-tabs" id="${tab}_tabs"></div>
+      <div class="cat-search">
+        <input type="search" id="${tab}_search" placeholder="Search ${escapeHtml(title.toLowerCase())}...">
+        <kbd>/</kbd>
+      </div>
+    </div>
+    <div class="cat-stats" id="${tab}_stats"></div>
+    <div class="cat-groups" id="${tab}_groups"></div>
+    <div id="${tab}_status" class="mono" style="margin-top:8px; font-size:12.5px; color:var(--steel);"></div>
+
+    <dialog id="${tab}_dialog">
+      <form id="${tab}_form"></form>
+    </dialog>
+  ` : `
     <div class="panel-h" style="border:none; background:none; padding:0 0 8px;">
       <h3 style="text-transform:none; letter-spacing:normal; font-size:15px; color:var(--ink); font-weight:600;">${escapeHtml(title)}</h3>
       <button type="button" class="btn add-btn sm" id="${tab}_addBtn" style="margin:0;">+ Add ${escapeHtml(singular)}</button>
@@ -134,6 +196,9 @@ async function initCrudTable(config) {
   const searchInput = root.querySelector(`#${tab}_search`);
   const colsBtn = root.querySelector(`#${tab}_colsBtn`);
   const colsMenu = root.querySelector(`#${tab}_colsMenu`);
+  const tabsEl = root.querySelector(`#${tab}_tabs`);
+  const statsEl = root.querySelector(`#${tab}_stats`);
+  const groupsEl = root.querySelector(`#${tab}_groups`);
 
   function setStatus(msg, kind) {
     statusEl.textContent = msg;
@@ -234,22 +299,25 @@ async function initCrudTable(config) {
   // in later, on each dialog open, so they're never stale.
   function renderForm() {
     form.innerHTML = `
-      <div class="dlg-h">
+      <div class="dlg-h${catalogue ? ' detail' : ''}">
+        ${catalogue ? `<img class="dlg-photo" id="${tab}_dlgPhoto" src="" alt="" style="display:none;">` : ''}
         <div>
+          ${catalogue ? `<div class="dlg-kicker" id="${tab}_dlgKicker"></div>` : ''}
           <div class="ttl" id="${tab}_dlgTitle">Add ${escapeHtml(singular)}</div>
-          ${subtitle ? `<div class="subtitle">${escapeHtml(subtitle)}</div>` : ''}
+          ${catalogue ? `<div class="subtitle" id="${tab}_dlgSub"></div>` : (subtitle ? `<div class="subtitle">${escapeHtml(subtitle)}</div>` : '')}
         </div>
         <button type="button" class="dlg-close" data-cancel aria-label="Close">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
         </button>
       </div>
       <div class="dlg-b">
-        <div class="row">
+        <div class="row${catalogue ? ' grid3' : ''}">
           ${fields.map(f => `<div class="col field"><label>${escapeHtml(f.label)}${f.required ? ' *' : ''}</label>${fieldInputHtml(f)}</div>`).join('')}
         </div>
         <div id="${tab}_dlgStatus" class="mono" style="margin-top:10px; font-size:12.5px; color:var(--steel);"></div>
       </div>
       <div class="dlg-f">
+        ${catalogue ? `<button type="button" class="btn danger" id="${tab}_dlgRemove" data-remove style="margin-right:auto; display:none;">Remove</button>` : ''}
         <button type="button" class="btn ghost" data-cancel>Cancel</button>
         <button type="submit" class="btn" id="${tab}_submitBtn">Add ${escapeHtml(singular)}</button>
       </div>
@@ -454,7 +522,9 @@ async function initCrudTable(config) {
       const rows = await sheetsGet(cfg.spreadsheetId, range, token);
       const rest = rows.length ? rows.slice(1) : [];
       rowsData = rest.map((values, i) => ({ rowNumber: i + 2, values }));
+      if (catalogue) renderCatalogueToolbar();
       applyViewAndRender();
+      if (onLoad) onLoad(rowsData, get);
       setStatus(`Loaded ${rest.length} row(s).`, 'ok');
     } catch (err) {
       setStatus('Error loading: ' + err.message, 'error');
@@ -473,9 +543,14 @@ async function initCrudTable(config) {
 
   function applyViewAndRender() {
     let view = rowsData;
+    if (catalogue && activeTab !== null) {
+      const idx = hIdx[catalogue.tabsBy];
+      view = view.filter(d => (d.values[idx] || '').toString().trim() === activeTab);
+    }
     if (searchTerm) {
       view = view.filter(d => d.values.some(v => (v ?? '').toString().toLowerCase().includes(searchTerm)));
     }
+    if (catalogue) { renderCatalogueGroups(view); return; }
     if (sortColIdx !== null) {
       view = [...view].sort((a, b) => compareCell(a.values[sortColIdx], b.values[sortColIdx], sortColIdx) * sortDir);
     }
@@ -538,6 +613,102 @@ async function initCrudTable(config) {
     ).join('');
   }
 
+  // ---- catalogue mode: tabs + stat figures + grouped card rows ----
+
+  function renderCatalogueToolbar() {
+    const tabsIdx = hIdx[catalogue.tabsBy];
+    catCounts = new Map();
+    rowsData.forEach(d => {
+      const v = (d.values[tabsIdx] || '').toString().trim();
+      if (!v) return;
+      catCounts.set(v, (catCounts.get(v) || 0) + 1);
+    });
+    const tabsField = fields.find(f => f.key === catalogue.tabsBy);
+    const orderedLabels = tabsField && tabsField.options
+      ? tabsField.options.map(o => (typeof o === 'object' ? o.value : o)).filter(v => catCounts.has(v))
+      : [...catCounts.keys()].sort();
+
+    tabsEl.innerHTML = [{ label: 'All', v: null }].concat(orderedLabels.map(l => ({ label: l, v: l }))).map(t => `
+      <button type="button" class="cat-tab${activeTab === t.v ? ' active' : ''}" data-tab="${t.v === null ? '' : escapeHtml(t.v)}">
+        ${escapeHtml(t.label)}<span class="n">${t.v === null ? rowsData.length : catCounts.get(t.v)}</span>
+      </button>`).join('');
+
+    if (catalogue.stats) {
+      const stats = catalogue.stats(rowsData, get);
+      statsEl.innerHTML = stats.map(s => `
+        <div class="stat${s.tone === 'crit' ? ' bad' : s.tone === 'warn' ? ' alert' : ''}">
+          <div class="l">${escapeHtml(s.l)}</div>
+          <div class="n">${escapeHtml(s.n)}${s.u ? ` <span style="font-size:12px;color:var(--steel);font-weight:500;">${escapeHtml(s.u)}</span>` : ''}</div>
+        </div>`).join('');
+    }
+  }
+
+  function catRowHtml(d) {
+    const pick = (key) => get(d.values, key);
+    const photoUrl = catalogue.photo ? (pick(catalogue.photo) || '').toString().trim() : '';
+    const name = catalogue.name ? pick(catalogue.name) : '';
+    const tagInfo = catalogue.tag ? catalogue.tag(pick) : null;
+    const subText = catalogue.sub ? catalogue.sub(pick) : '';
+    const metaLines = catalogue.meta ? catalogue.meta(pick) : [];
+    const badges = catalogue.badges ? catalogue.badges(pick) : [];
+    const gpInfo = catalogue.gp ? catalogue.gp(pick) : null;
+
+    const photoHtml = photoUrl
+      ? `<img class="cr-photo" src="${escapeHtml(photoUrl)}" alt="" loading="lazy">`
+      : `<span class="cr-photo"></span>`;
+    const tagHtml = tagInfo && tagInfo.text
+      ? `<span class="tag ${tagInfo.on ? 't-chill' : 't-amb'}">${escapeHtml(tagInfo.text)}</span>` : '';
+    const badgeHtml = badges.length ? `<span class="tag t-${badges[0].tone}">${escapeHtml(badges[0].text)}</span>` : '';
+    const priceCells = (catalogue.prices || []).map(p => `<div class="cr-price${p.big ? ' big' : ''}">${escapeHtml(p.get(pick))}</div>`).join('');
+
+    return `
+      <div class="cat-row" data-row="${d.rowNumber}">
+        ${photoHtml}
+        <div class="cr-info">
+          <div class="cr-name-line">
+            <span class="cr-name">${escapeHtml(name)}</span>
+            ${tagHtml}${badgeHtml}
+          </div>
+          ${subText ? `<div class="cr-sub">${escapeHtml(subText)}</div>` : ''}
+        </div>
+        <div class="cr-meta">${metaLines.map(l => `<div>${escapeHtml(l)}</div>`).join('')}</div>
+        ${priceCells}
+        ${gpInfo ? `<div class="cr-gp" style="color:${gpInfo.color}">${escapeHtml(gpInfo.text)}</div>` : ''}
+      </div>`;
+  }
+
+  function renderCatalogueGroups(viewRows) {
+    if (!viewRows.length) {
+      const title = rowsData.length ? 'No rows match your search.' : (catalogue.emptyTitle || 'Nothing here yet.');
+      const sub = !rowsData.length && catalogue.emptySub ? `<div>${escapeHtml(catalogue.emptySub)}</div>` : '';
+      groupsEl.innerHTML = `<div class="empty"><strong>${escapeHtml(title)}</strong>${sub}</div>`;
+      return;
+    }
+    const groupIdx = hIdx[catalogue.groupBy || catalogue.tabsBy];
+    const order = [];
+    const buckets = new Map();
+    viewRows.forEach(d => {
+      const key = (d.values[groupIdx] || '').toString().trim() || 'Uncategorised';
+      if (!buckets.has(key)) { buckets.set(key, []); order.push(key); }
+      buckets.get(key).push(d);
+    });
+    groupsEl.innerHTML = order.map(key => {
+      const items = buckets.get(key);
+      const total = catCounts.get(key) || items.length;
+      return `
+        <div class="cat-group">
+          <div class="cat-group-head">
+            <span class="g-name">${escapeHtml(key)}</span>
+            <span class="g-count">${items.length} of ${total}</span>
+            <span class="g-spacer"></span>
+            ${(catalogue.prices || []).map(p => `<span class="g-col">${escapeHtml(p.label)}</span>`).join('')}
+            ${catalogue.gp ? `<span class="g-col gp">${escapeHtml(catalogue.gpLabel || 'GP')}</span>` : ''}
+          </div>
+          ${items.map(catRowHtml).join('')}
+        </div>`;
+    }).join('');
+  }
+
   async function handleDelete(rowNumber) {
     if (!confirm('Remove this row? This can\'t be undone.')) return;
     const cfg = await ensureAuth();
@@ -555,49 +726,71 @@ async function initCrudTable(config) {
     }
   }
 
-  tableEl.addEventListener('click', (e) => {
-    const th = e.target.closest('th[data-col-idx]');
-    if (th) {
-      const idx = parseInt(th.dataset.colIdx, 10);
-      if (sortColIdx === idx) sortDir *= -1; else { sortColIdx = idx; sortDir = 1; }
+  if (catalogue) {
+    tabsEl.addEventListener('click', (e) => {
+      const btn = e.target.closest('button[data-tab]');
+      if (!btn) return;
+      activeTab = btn.dataset.tab || null;
+      renderCatalogueToolbar();
       applyViewAndRender();
-      return;
-    }
-    const delBtn = e.target.closest('button[data-del]');
-    if (delBtn) { handleDelete(parseInt(delBtn.dataset.del, 10)); return; }
-    const editBtn = e.target.closest('button[data-edit]');
-    if (editBtn) { handleEdit(parseInt(editBtn.dataset.edit, 10)); return; }
+    });
+    groupsEl.addEventListener('click', (e) => {
+      const row = e.target.closest('.cat-row[data-row]');
+      if (row) handleEdit(parseInt(row.dataset.row, 10));
+    });
+    // Matches the "/" hint shown next to the search box.
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== '/' || dialogEl.open) return;
+      const tag = document.activeElement && document.activeElement.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+      e.preventDefault();
+      searchInput.focus();
+    });
+  } else {
+    tableEl.addEventListener('click', (e) => {
+      const th = e.target.closest('th[data-col-idx]');
+      if (th) {
+        const idx = parseInt(th.dataset.colIdx, 10);
+        if (sortColIdx === idx) sortDir *= -1; else { sortColIdx = idx; sortDir = 1; }
+        applyViewAndRender();
+        return;
+      }
+      const delBtn = e.target.closest('button[data-del]');
+      if (delBtn) { handleDelete(parseInt(delBtn.dataset.del, 10)); return; }
+      const editBtn = e.target.closest('button[data-edit]');
+      if (editBtn) { handleEdit(parseInt(editBtn.dataset.edit, 10)); return; }
 
-    if (!inlineEdit) return;
-    const td = e.target.closest('td[data-col-idx]');
-    if (!td || inlineEditing) return; // ignore stray clicks while a cell is already mid-edit
-    const idx = parseInt(td.dataset.colIdx, 10);
-    const rowNumber = parseInt(td.closest('tr').dataset.row, 10);
-    const field = fieldForHeaderIndex(idx);
-    if (opensDetail(field, idx)) { handleEdit(rowNumber); return; }
-    if (isInlineEditable(field)) beginInlineEdit(td, rowNumber, idx, field);
-  });
+      if (!inlineEdit) return;
+      const td = e.target.closest('td[data-col-idx]');
+      if (!td || inlineEditing) return; // ignore stray clicks while a cell is already mid-edit
+      const idx = parseInt(td.dataset.colIdx, 10);
+      const rowNumber = parseInt(td.closest('tr').dataset.row, 10);
+      const field = fieldForHeaderIndex(idx);
+      if (opensDetail(field, idx)) { handleEdit(rowNumber); return; }
+      if (isInlineEditable(field)) beginInlineEdit(td, rowNumber, idx, field);
+    });
+
+    colsBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      colsMenu.style.display = colsMenu.style.display === 'none' ? 'block' : 'none';
+    });
+    document.addEventListener('click', (e) => {
+      if (colsMenu.style.display !== 'none' && !colsMenu.contains(e.target) && e.target !== colsBtn) {
+        colsMenu.style.display = 'none';
+      }
+    });
+    colsMenu.addEventListener('change', (e) => {
+      const cb = e.target.closest('input[type=checkbox]');
+      if (!cb) return;
+      const col = cb.dataset.col;
+      if (cb.checked) hiddenCols.delete(col); else hiddenCols.add(col);
+      localStorage.setItem(hiddenColsKey, JSON.stringify([...hiddenCols]));
+      applyViewAndRender();
+    });
+  }
 
   searchInput.addEventListener('input', () => {
     searchTerm = searchInput.value.trim().toLowerCase();
-    applyViewAndRender();
-  });
-
-  colsBtn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    colsMenu.style.display = colsMenu.style.display === 'none' ? 'block' : 'none';
-  });
-  document.addEventListener('click', (e) => {
-    if (colsMenu.style.display !== 'none' && !colsMenu.contains(e.target) && e.target !== colsBtn) {
-      colsMenu.style.display = 'none';
-    }
-  });
-  colsMenu.addEventListener('change', (e) => {
-    const cb = e.target.closest('input[type=checkbox]');
-    if (!cb) return;
-    const col = cb.dataset.col;
-    if (cb.checked) hiddenCols.delete(col); else hiddenCols.add(col);
-    localStorage.setItem(hiddenColsKey, JSON.stringify([...hiddenCols]));
     applyViewAndRender();
   });
 
@@ -616,10 +809,30 @@ async function initCrudTable(config) {
   });
   const guard = attachDiscardGuard(dialogEl, { scope: form });
 
+  // Catalogue mode's dialog header carries a photo + kicker + dynamic
+  // subline instead of the generic static `subtitle` — updated per-open
+  // since it reflects whichever row (or none, in Add mode) is showing.
+  function updateCatalogueDialogHeader(rowValues) {
+    if (!catalogue) return;
+    const pick = rowValues ? (key) => get(rowValues, key) : () => '';
+    const photoEl = root.querySelector(`#${tab}_dlgPhoto`);
+    const kickerEl = root.querySelector(`#${tab}_dlgKicker`);
+    const subEl = root.querySelector(`#${tab}_dlgSub`);
+    const photoUrl = rowValues && catalogue.photo ? (pick(catalogue.photo) || '').toString().trim() : '';
+    if (photoEl) { photoEl.src = photoUrl; photoEl.style.display = photoUrl ? '' : 'none'; }
+    if (kickerEl) kickerEl.textContent = rowValues && catalogue.kicker ? catalogue.kicker(pick) : '';
+    if (subEl) subEl.textContent = rowValues && catalogue.detailSub ? catalogue.detailSub(pick) : '';
+  }
+
   async function openAddDialog() {
     editing = null;
     root.querySelector(`#${tab}_dlgTitle`).textContent = `Add ${singular}`;
     root.querySelector(`#${tab}_submitBtn`).textContent = `Add ${singular}`;
+    if (catalogue) {
+      updateCatalogueDialogHeader(null);
+      const removeBtn = root.querySelector(`#${tab}_dlgRemove`);
+      if (removeBtn) removeBtn.style.display = 'none';
+    }
     setDlgStatus('');
     resetFieldValues();
     await refreshRefOptions();
@@ -634,6 +847,11 @@ async function initCrudTable(config) {
     editing = { rowNumber, id: rowValues[0] };
     root.querySelector(`#${tab}_dlgTitle`).textContent = recordTitle(rowValues) || `Edit ${singular}`;
     root.querySelector(`#${tab}_submitBtn`).textContent = 'Save changes';
+    if (catalogue) {
+      updateCatalogueDialogHeader(rowValues);
+      const removeBtn = root.querySelector(`#${tab}_dlgRemove`);
+      if (removeBtn) removeBtn.style.display = '';
+    }
     setDlgStatus('');
     resetFieldValues();
     await refreshRefOptions();
@@ -645,10 +863,21 @@ async function initCrudTable(config) {
     guard.arm();
   }
 
-  root.querySelector(`#${tab}_addBtn`).addEventListener('click', openAddDialog);
+  if (!catalogue) root.querySelector(`#${tab}_addBtn`).addEventListener('click', openAddDialog);
   // Both the header's close button and the footer's Cancel button carry
   // data-cancel — wire every match, not just the first.
   form.querySelectorAll('[data-cancel]').forEach(el => el.addEventListener('click', () => guard.guardedClose()));
+  if (catalogue) {
+    // Catalogue rows carry no per-row action buttons — the detail dialog
+    // is the only place a record gets removed.
+    const removeBtn = form.querySelector('[data-remove]');
+    if (removeBtn) removeBtn.addEventListener('click', async () => {
+      if (!editing) return;
+      const rowNumber = editing.rowNumber;
+      dialogEl.close(); // programmatic close — bypasses the discard guard, same as a successful save
+      await handleDelete(rowNumber);
+    });
+  }
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -717,7 +946,12 @@ async function initCrudTable(config) {
     });
   }
 
-  root.querySelector(`#${tab}_reload`).addEventListener('click', loadRows);
+  if (!catalogue) root.querySelector(`#${tab}_reload`).addEventListener('click', loadRows);
 
   loadRows();
+
+  // Catalogue-mode pages own their "+ Add" / bulk-action buttons as page
+  // chrome (see products.html) rather than the generic toolbar above, so
+  // they need a way to trigger the same dialog/reload this closure owns.
+  return { openAdd: openAddDialog, reload: loadRows };
 }
