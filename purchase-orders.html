@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=Roboto+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/style.css?v=16">
+<link rel="stylesheet" href="css/style.css?v=17">
 <link rel="icon" type="image/png" href="img/favicon.png">
 </head>
 <body>
@@ -69,7 +69,7 @@
 
 <script src="js/config.js?v=2"></script>
 <script src="js/sheets.js?v=1"></script>
-<script src="js/util.js?v=1"></script>
+<script src="js/util.js?v=2"></script>
 <script src="js/dialog-guard.js?v=1"></script>
 <script src="js/daterange.js?v=1"></script>
 <script src="js/searchable-select.js?v=1"></script>
@@ -364,6 +364,16 @@
       if (stepBtn) { adjustDraftQty(stepBtn.dataset.code, parseInt(stepBtn.dataset.step, 10)); return; }
     };
 
+    form.oninput = (e) => {
+      const qtyInput = e.target.closest('.stepper-qty-input');
+      if (qtyInput) handleQtyInput(qtyInput.dataset.code);
+    };
+    // Selects the field's existing value on focus so typing a new qty (e.g.
+    // 100) doesn't require clearing the old one first.
+    form.addEventListener('focus', (e) => {
+      if (e.target.classList && e.target.classList.contains('stepper-qty-input')) e.target.select();
+    }, true);
+
     form.onsubmit = handleCreateSubmit;
   }
 
@@ -429,8 +439,8 @@
     const subText = [p['Producer'], meta.isCase ? `${meta.perCase} × ${meta.unit === 'kg' ? (parseFloat(p['Nominal weight (kg)']) || '?') + 'kg' : '1 piece'} per case` : `Ordered per ${meta.unit === 'kg' ? 'kg' : 'piece'}`].filter(Boolean).join(' · ');
     const onHand = stockOnHand(code);
     const incoming = incomingForProduct(code);
-    const stockText = `On hand ${onHand}${unitLabel(meta.unit)}` + (incoming.qty > 0
-      ? ` · ${incoming.qty}${unitLabel(meta.unit)} arriving${incoming.nextDate ? ' ' + fmtDateShort(incoming.nextDate) : ''}`
+    const stockText = `On hand ${qtyUnit(onHand, meta.unit)}` + (incoming.qty > 0
+      ? ` · ${qtyUnit(incoming.qty, meta.unit)} arriving${incoming.nextDate ? ' ' + fmtDateShort(incoming.nextDate) : ''}`
       : '');
     return `
       <div class="cat-row picker-row" data-code="${escapeHtml(code)}">
@@ -442,19 +452,54 @@
         </div>
         <div class="cr-stepper">
           <button type="button" class="stepper-btn" data-step="-1" data-code="${escapeHtml(code)}" ${qty <= 0 ? 'disabled' : ''} aria-label="Remove one">−</button>
-          <span class="stepper-qty">${stepperQtyHtml(qty, meta)}</span>
+          <div class="stepper-qty">${stepperQtyInputHtml(qty, meta, code)}</div>
           <button type="button" class="stepper-btn" data-step="1" data-code="${escapeHtml(code)}" aria-label="Add one">+</button>
         </div>
       </div>`;
   }
 
-  function stepperQtyHtml(qty, meta) {
-    if (qty <= 0) return '—';
-    if (meta.isCase) {
-      const cases = roundQty(qty / meta.step);
-      return `${cases} case${cases === 1 ? '' : 's'}<span class="stepper-sub">${qty}${unitLabel(meta.unit)}</span>`;
+  // The qty cell is a real <input> (not just +/- buttons) so a large or
+  // fractional quantity (100 cases, 1.6kg) can be typed directly instead of
+  // clicked one step at a time. Case items show/edit the case count, with
+  // the equivalent kg or piece total underneath; non-case items edit that
+  // tracked unit directly, decimals allowed for kg.
+  function stepperQtyInputHtml(qty, meta, code) {
+    const displayQty = qty > 0 ? (meta.isCase ? roundQty(qty / meta.step) : qty) : '';
+    const step = meta.isCase ? '1' : (meta.unit === 'kg' ? '0.01' : '1');
+    const suffix = meta.isCase ? `case${roundQty(qty / meta.step) === 1 ? '' : 's'}` : unitLabel(meta.unit);
+    const sub = meta.isCase ? `<span class="stepper-sub">${qty > 0 ? qtyUnit(qty, meta.unit) : ''}</span>` : '';
+    return `
+      <input type="number" class="stepper-qty-input" data-code="${escapeHtml(code)}" value="${displayQty}" placeholder="0" min="0" step="${step}">
+      <span class="stepper-unit-suffix">${escapeHtml(suffix)}</span>
+      ${sub}
+    `;
+  }
+
+  // Both the +/- buttons and typing into the qty <input> land here — the
+  // buttons pass a code+direction, direct input passes the code and reads
+  // its own field. `skipInputValue` avoids re-writing the input mid-keystroke.
+  function setDraftQty(code, qty, meta, p) {
+    const line = draftLines.find(l => l.code === code);
+    if (qty <= 0) {
+      draftLines = draftLines.filter(l => l.code !== code);
+    } else if (line) {
+      line.qty = qty;
+    } else {
+      draftLines.push({ code, name: p['Product name'], qty, unit: meta.unit });
     }
-    return `${qty} ${unitLabel(meta.unit)}`;
+  }
+
+  function updateStepperRow(code, qty, meta, opts = {}) {
+    const row = form.querySelector(`.picker-row[data-code="${CSS.escape(code)}"]`);
+    if (!row) return;
+    if (!opts.skipInputValue) {
+      row.querySelector('.stepper-qty-input').value = qty > 0 ? (meta.isCase ? roundQty(qty / meta.step) : qty) : '';
+    }
+    const suffix = row.querySelector('.stepper-unit-suffix');
+    if (suffix && meta.isCase) suffix.textContent = `case${roundQty(qty / meta.step) === 1 ? '' : 's'}`;
+    const sub = row.querySelector('.stepper-sub');
+    if (sub) sub.textContent = qty > 0 ? qtyUnit(qty, meta.unit) : '';
+    row.querySelector('[data-step="-1"]').disabled = qty <= 0;
   }
 
   function adjustDraftQty(code, dir) {
@@ -463,18 +508,25 @@
     const meta = productOrderMeta(p);
     const line = draftLines.find(l => l.code === code);
     const qty = Math.max(0, roundQty((line ? line.qty : 0) + dir * meta.step));
-    if (qty <= 0) {
-      draftLines = draftLines.filter(l => l.code !== code);
-    } else if (line) {
-      line.qty = qty;
-    } else {
-      draftLines.push({ code, name: p['Product name'], qty, unit: meta.unit });
-    }
+    setDraftQty(code, qty, meta, p);
+    updateStepperRow(code, qty, meta);
+    renderOrderSummary();
+  }
+
+  // Typing directly into a picker row's qty <input> — for a case item the
+  // typed number is a case count (converted to the tracked unit); otherwise
+  // it's the tracked unit itself (kg allows decimals, e.g. 1.6).
+  function handleQtyInput(code) {
+    const p = products.find(pr => pr['Product code'] === code);
+    if (!p) return;
+    const meta = productOrderMeta(p);
     const row = form.querySelector(`.picker-row[data-code="${CSS.escape(code)}"]`);
-    if (row) {
-      row.querySelector('.stepper-qty').innerHTML = stepperQtyHtml(qty, meta);
-      row.querySelector('[data-step="-1"]').disabled = qty <= 0;
-    }
+    if (!row) return;
+    const entered = parseFloat(row.querySelector('.stepper-qty-input').value);
+    const clean = isNaN(entered) || entered < 0 ? 0 : entered;
+    const qty = roundQty(meta.isCase ? clean * meta.step : clean);
+    setDraftQty(code, qty, meta, p);
+    updateStepperRow(code, qty, meta, { skipInputValue: true });
     renderOrderSummary();
   }
 

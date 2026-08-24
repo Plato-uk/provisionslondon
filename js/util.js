@@ -37,3 +37,10 @@ function escapeHtml(s) {
 function unitLabel(u) {
   return u === 'pc' ? 'Pieces' : (u || '');
 }
+
+// Formats a quantity flush against its unit label ('12kg') for kg, since
+// that's normal unit notation — everything else ('Pieces') needs a space
+// ('6 Pieces') or it reads as one run-together word.
+function qtyUnit(qty, unit) {
+  return `${qty}${unit === 'kg' ? 'kg' : ' ' + unitLabel(unit)}`;
+}
