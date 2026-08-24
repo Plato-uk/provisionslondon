@@ -277,6 +277,7 @@
 
         <div class="field">
           <label>Products</label>
+          <input type="search" id="ord_productSearch" placeholder="Search products by name or code..." style="margin-bottom:10px;">
           <div id="ord_productPicker"></div>
           <div id="ord_orderSummary" class="mono" style="margin-top:10px; font-size:13px; color:var(--steel); text-align:right;"></div>
         </div>
@@ -295,11 +296,14 @@
     renderProductPicker();
 
     const customerSel = form.querySelector('#ord_customer');
+    const searchInput = form.querySelector('#ord_productSearch');
     enhanceSelect(customerSel);
 
     dirtyCheck = () => !!customerSel.value || draftLines.length > 0
       || !!form.querySelector('#ord_notes').value.trim()
       || !!form.querySelector('#ord_deliveryDate').value;
+
+    searchInput.addEventListener('input', () => renderProductPicker());
 
     form.onclick = (e) => {
       if (e.target.closest('[data-cancel]')) { guard.guardedClose(); return; }
@@ -314,9 +318,19 @@
   // the PO picker), since a customer order can include anything sellable.
   function renderProductPicker() {
     const mount = form.querySelector('#ord_productPicker');
-    const orderProducts = products.filter(p => (p.Active || 'Yes') !== 'No');
+    let orderProducts = products.filter(p => (p.Active || 'Yes') !== 'No');
     if (!orderProducts.length) {
       mount.innerHTML = `<div class="empty" style="padding:12px 0;">No products set up yet.</div>`;
+      renderOrderSummary();
+      return;
+    }
+    const term = (form.querySelector('#ord_productSearch').value || '').trim().toLowerCase();
+    if (term) {
+      orderProducts = orderProducts.filter(p =>
+        (p['Product name'] || '').toLowerCase().includes(term) || (p['Product code'] || '').toLowerCase().includes(term));
+    }
+    if (!orderProducts.length) {
+      mount.innerHTML = `<div class="empty" style="padding:12px 0;">No products match "${escapeHtml(term)}".</div>`;
       renderOrderSummary();
       return;
     }

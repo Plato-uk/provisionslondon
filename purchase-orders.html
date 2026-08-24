@@ -322,6 +322,7 @@
 
         <div class="field">
           <label>Products</label>
+          <input type="search" id="po_productSearch" placeholder="Search products by name or code..." style="margin-bottom:10px;">
           <div id="po_productPicker"></div>
           <div id="po_orderSummary" class="mono" style="margin-top:10px; font-size:13px; color:var(--steel); text-align:right;"></div>
         </div>
@@ -340,6 +341,7 @@
     dateRangePicker = createDateRangePicker({ mount: '#po_dateRange' });
 
     const supplierSel = form.querySelector('#po_supplier');
+    const searchInput = form.querySelector('#po_productSearch');
     enhanceSelect(supplierSel);
     renderProductPicker(supplierSel.value);
 
@@ -350,8 +352,11 @@
     form.onchange = (e) => {
       if (e.target !== supplierSel) return;
       draftLines = []; // staged lines belonged to the old supplier's catalog
+      searchInput.value = '';
       renderProductPicker(supplierSel.value);
     };
+
+    searchInput.addEventListener('input', () => renderProductPicker(supplierSel.value));
 
     form.onclick = (e) => {
       if (e.target.closest('[data-cancel]')) { guard.guardedClose(); return; }
@@ -369,9 +374,19 @@
       renderOrderSummary();
       return;
     }
-    const supplierProducts = orderableSupplierProducts(supplier);
+    let supplierProducts = orderableSupplierProducts(supplier);
     if (!supplierProducts.length) {
       mount.innerHTML = `<div class="empty" style="padding:12px 0;">No orderable products set up for this supplier — anything cut from another product doesn't show here.</div>`;
+      renderOrderSummary();
+      return;
+    }
+    const term = (form.querySelector('#po_productSearch').value || '').trim().toLowerCase();
+    if (term) {
+      supplierProducts = supplierProducts.filter(p =>
+        (p['Product name'] || '').toLowerCase().includes(term) || (p['Product code'] || '').toLowerCase().includes(term));
+    }
+    if (!supplierProducts.length) {
+      mount.innerHTML = `<div class="empty" style="padding:12px 0;">No products match "${escapeHtml(term)}".</div>`;
       renderOrderSummary();
       return;
     }
