@@ -305,14 +305,97 @@ async function initCrudTable(config) {
       return `<option value="${escapeHtml(opt.value)}">${escapeHtml(opt.label)}</option>`;
     }).join('')}</select>`;
     if (f.type === 'ref') return `<select id="${id}"><option value="">Loading…</option></select>`;
+    if (f.type === 'file') return `
+      <input id="${id}" placeholder="${escapeHtml(f.placeholder || '')}">
+      <div class="file-field-row">
+        <input type="file" id="${id}_file" class="file-field-input">
+        ${f.onUpload ? `<button type="button" class="btn ghost sm" id="${id}_uploadBtn">Upload</button>` : ''}
+      </div>
+      <div class="file-field-status mono" id="${id}_status"></div>
+    `;
     // 'image' falls through to the default plain text input below — it's
     // just a URL field; only its table display differs (see displayCell).
     return `<input id="${id}" placeholder="${escapeHtml(f.placeholder || '')}">`;
   }
 
+  // Keeps a 'file' field's "Open ↗" link in sync with its underlying URL
+  // input, whether that value came from typing/pasting, populateFieldsFromRow
+  // (edit mode), or a completed upload.
+  function syncFileFieldLink(f) {
+    if (f.type !== 'file') return;
+    const urlInput = form.querySelector(`#${fid(f)}`);
+    const link = form.querySelector(`#${fid(f)}_view`);
+    if (!urlInput || !link) return;
+    const v = urlInput.value.trim();
+    link.style.display = v ? 'inline' : 'none';
+    link.href = v;
+  }
+
+  // Wires each 'file' field's Upload button (when the field config supplies
+  // `onUpload`) and keeps its "Open ↗" link in sync. `onUpload(file, getField)`
+  // is page-specific (it's how Drive knowledge stays out of this generic
+  // module) — `getField(key)` reads another field's current, unsaved form
+  // value, e.g. to name the uploaded file after the record's own key field.
+  function wireFileFields() {
+    fields.forEach(f => {
+      if (f.type !== 'file') return;
+      const urlInput = form.querySelector(`#${fid(f)}`);
+      urlInput.addEventListener('input', () => syncFileFieldLink(f));
+      urlInput.addEventListener('change', () => syncFileFieldLink(f));
+      if (!f.onUpload) return;
+      const fileInput = form.querySelector(`#${fid(f)}_file`);
+      const uploadBtn = form.querySelector(`#${fid(f)}_uploadBtn`);
+      const statusEl = form.querySelector(`#${fid(f)}_status`);
+      uploadBtn.addEventListener('click', async () => {
+        const file = fileInput.files[0];
+        if (!file) { statusEl.textContent = 'Choose a file first.'; statusEl.style.color = 'var(--crit)'; return; }
+        uploadBtn.disabled = true;
+        statusEl.textContent = 'Uploading...'; statusEl.style.color = 'var(--steel)';
+        try {
+          const url = await f.onUpload(file, (key) => {
+            const other = fields.find(x => x.key === key);
+            return other ? fieldValue(other) : '';
+          });
+          urlInput.value = url;
+          syncFileFieldLink(f);
+          statusEl.textContent = 'Uploaded.'; statusEl.style.color = 'var(--ok)';
+          fileInput.value = '';
+        } catch (err) {
+          statusEl.textContent = 'Error: ' + err.message; statusEl.style.color = 'var(--crit)';
+        } finally {
+          uploadBtn.disabled = false;
+        }
+      });
+    });
+  }
+
   // Builds the dialog's form DOM once. Ref-type <select> options are filled
   // in later, on each dialog open, so they're never stale.
+  //
+  // Fields are normally one flat grid. A field can opt into a named
+  // `section` (e.g. 'Docs & training') to be grouped under a small tab
+  // bar instead — purely a dialog-layout thing, unrelated to sort/search/
+  // sheet-column order. Only kicks in once 2+ distinct sections exist, so
+  // pages that never set `section` render exactly as before.
   function renderForm() {
+    const sectionOrder = [];
+    const sectionFields = new Map();
+    fields.forEach(f => {
+      const sec = f.section || null;
+      if (!sectionFields.has(sec)) { sectionFields.set(sec, []); sectionOrder.push(sec); }
+      sectionFields.get(sec).push(f);
+    });
+    const hasTabs = sectionOrder.length > 1;
+
+    const fieldHtml = (f) => `<div class="col field"><label>${escapeHtml(f.label)}${f.required ? ' *' : ''}${f.type === 'file' ? ` <a href="#" class="file-field-view" id="${fid(f)}_view" target="_blank" rel="noopener">Open ↗</a>` : ''}</label>${fieldInputHtml(f)}</div>`;
+    const rowClass = `row${catalogue ? ' grid3' : ''}`;
+    const bodyHtml = hasTabs ? `
+      <div class="cat-tabs dlg-tabs" id="${tab}_dlgTabs">
+        ${sectionOrder.map((sec, i) => `<button type="button" class="cat-tab${i === 0 ? ' active' : ''}" data-dlg-tab="${escapeHtml(sec || '')}">${escapeHtml(sec || 'Details')}</button>`).join('')}
+      </div>
+      ${sectionOrder.map((sec, i) => `<div class="${rowClass} dlg-tab-panel" data-dlg-panel="${escapeHtml(sec || '')}" style="${i === 0 ? '' : 'display:none;'}">${sectionFields.get(sec).map(fieldHtml).join('')}</div>`).join('')}
+    ` : `<div class="${rowClass}">${fields.map(fieldHtml).join('')}</div>`;
+
     form.innerHTML = `
       <div class="dlg-h${catalogue ? ' detail' : ''}">
         ${catalogue ? `<img class="dlg-photo" id="${tab}_dlgPhoto" src="" alt="" style="display:none;">` : ''}
@@ -326,9 +409,7 @@ async function initCrudTable(config) {
         </button>
       </div>
       <div class="dlg-b">
-        <div class="row${catalogue ? ' grid3' : ''}">
-          ${fields.map(f => `<div class="col field"><label>${escapeHtml(f.label)}${f.required ? ' *' : ''}</label>${fieldInputHtml(f)}</div>`).join('')}
-        </div>
+        ${bodyHtml}
         <div id="${tab}_dlgStatus" class="mono" style="margin-top:10px; font-size:12.5px; color:var(--steel);"></div>
       </div>
       <div class="dlg-f">
@@ -337,7 +418,18 @@ async function initCrudTable(config) {
         <button type="submit" class="btn" id="${tab}_submitBtn">Add ${escapeHtml(singular)}</button>
       </div>
     `;
+
+    if (hasTabs) {
+      form.querySelector(`#${tab}_dlgTabs`).addEventListener('click', (e) => {
+        const btn = e.target.closest('button[data-dlg-tab]');
+        if (!btn) return;
+        form.querySelectorAll(`#${tab}_dlgTabs .cat-tab`).forEach(b => b.classList.toggle('active', b === btn));
+        form.querySelectorAll('.dlg-tab-panel').forEach(p => { p.style.display = p.dataset.dlgPanel === btn.dataset.dlgTab ? '' : 'none'; });
+      });
+    }
+
     resetFieldValues();
+    wireFileFields();
   }
 
   function resetFieldValues() {
@@ -346,6 +438,7 @@ async function initCrudTable(config) {
       if (f.type === 'checkbox') el.checked = false;
       else if (f.type === 'date' && f.default === 'today') el.value = new Date().toISOString().slice(0, 10);
       else el.value = '';
+      syncFileFieldLink(f);
     }
     // The natural-key field (Products.CODE etc.) is only ever locked while
     // editing an existing row — Add mode always starts unlocked.

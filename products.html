@@ -87,9 +87,9 @@
 <script src="js/sheets.js?v=1"></script>
 <script src="js/util.js?v=1"></script>
 <script src="js/dialog-guard.js?v=1"></script>
-<script src="js/drive.js?v=1"></script>
+<script src="js/drive.js?v=2"></script>
 <script src="js/searchable-select.js?v=1"></script>
-<script src="js/crud-page.js?v=12"></script>
+<script src="js/crud-page.js?v=13"></script>
 <script>
   function requireAuth() {
     const cfg = getStoredConfig();
@@ -147,7 +147,7 @@
       mount: '#productsMount',
       title: 'Products',
       tab: 'Products',
-      headers: ['Product code','Product name','Category','Default supplier','Producer','Storage','Ordering unit','Units per case','Pricing basis','Nominal weight (kg)','Cost price £','Landed cost £','GP at list','Tolerance band (%)','Cut from (code)','Cut shelf life (days)','Part-cut shelf life (days)','Target pack weight (kg)','Xero item code','Xero account code','VAT rate','Active','Sellable','Notes','Photo URL','Reorder threshold'],
+      headers: ['Product code','Product name','Category','Default supplier','Producer','Storage','Ordering unit','Units per case','Pricing basis','Nominal weight (kg)','Cost price £','Landed cost £','GP at list','Tolerance band (%)','Cut from (code)','Cut shelf life (days)','Part-cut shelf life (days)','Target pack weight (kg)','Xero item code','Xero account code','VAT rate','Active','Sellable','Notes','Photo URL','Reorder threshold','Tech sheet URL','Training notes'],
       autoId: null,
       fields: [
         { key: 'Product code', label: 'Product code', type: 'text', required: true, placeholder: 'e.g. CCS050' },
@@ -175,7 +175,24 @@
         { key: 'Sellable', label: 'Sellable', type: 'checkbox', trueValue: 'Yes', falseValue: 'No' },
         { key: 'Notes', label: 'Notes', type: 'textarea' },
         { key: 'Photo URL', label: 'Photo', type: 'image', placeholder: 'https://... — usually set via Bulk upload photos' },
-        { key: 'Reorder threshold', label: 'Reorder threshold', type: 'number', placeholder: 'On-hand qty below this is flagged as low stock' }
+        { key: 'Reorder threshold', label: 'Reorder threshold', type: 'number', placeholder: 'On-hand qty below this is flagged as low stock' },
+        {
+          key: 'Tech sheet URL', label: 'Tech sheet', type: 'file', section: 'Docs & training',
+          placeholder: 'https://... — paste a link, or upload a file below',
+          onUpload: async (file, getField) => {
+            const cfg = getStoredConfig();
+            const token = tryResumeSession();
+            if (!token || !cfg.spreadsheetId) throw new Error('Sign in on the Dashboard first.');
+            const code = getField('Product code');
+            if (!code) throw new Error('Enter a product code first.');
+            const folderId = await driveEnsureDocsFolder(token);
+            return driveUploadProductDoc(folderId, code, file, token);
+          }
+        },
+        {
+          key: 'Training notes', label: 'Training sheet', type: 'textarea', section: 'Docs & training',
+          placeholder: 'Everything staff should know handling this product — cutting, storage, allergens, talking points...'
+        }
       ],
       inlineEdit: true,
       catalogue: {

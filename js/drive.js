@@ -88,6 +88,52 @@ function driveImageUrl(fileId) {
   return `https://drive.google.com/thumbnail?id=${fileId}&sz=w1000`;
 }
 
+// Separate folder for non-photo product documents (tech sheets), so they
+// don't mix with the photos folder above.
+const DRIVE_DOCS_FOLDER_NAME = 'Provisions Product Docs';
+const DRIVE_DOCS_FOLDER_ID_KEY = 'provisions_docsFolderId';
+
+async function driveEnsureDocsFolder(token) {
+  const cached = localStorage.getItem(DRIVE_DOCS_FOLDER_ID_KEY);
+  if (cached) {
+    const res = await fetch(`https://www.googleapis.com/drive/v3/files/${cached}?fields=id,trashed`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    if (res.ok) {
+      const meta = await res.json();
+      if (!meta.trashed) return cached;
+    }
+    // Cached folder is gone or trashed — fall through and create a new one.
+  }
+  const created = await driveHandle(await fetch('https://www.googleapis.com/drive/v3/files', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: DRIVE_DOCS_FOLDER_NAME, mimeType: 'application/vnd.google-apps.folder' })
+  }));
+  localStorage.setItem(DRIVE_DOCS_FOLDER_ID_KEY, created.id);
+  return created.id;
+}
+
+// High-level entry point used by the Products detail dialog's Tech sheet
+// upload: uploads `file` as the tech sheet for `productCode`, reusing
+// (overwriting) any existing file for that code, and returns a link staff
+// can open directly (Drive's file-view page, since these aren't images).
+async function driveUploadProductDoc(folderId, productCode, file, token) {
+  const ext = (file.name.split('.').pop() || 'pdf').toLowerCase();
+  const driveName = `${productCode || 'untitled'}.${ext}`;
+  const existing = await driveFindFileByName(folderId, driveName, token);
+  const result = await driveUploadFileBytes({
+    folderId,
+    name: driveName,
+    mimeType: file.type || 'application/octet-stream',
+    blob: file,
+    existingFileId: existing ? existing.id : null,
+    token
+  });
+  if (!existing) await driveSetPublicReadable(result.id, token);
+  return `https://drive.google.com/file/d/${result.id}/view`;
+}
+
 // High-level entry point used by the Products bulk upload dialog: uploads
 // `file` as the photo for `productCode`, reusing (overwriting) any existing
 // photo file for that code, and returns the image URL to store in the sheet.
