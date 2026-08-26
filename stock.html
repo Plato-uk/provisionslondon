@@ -52,6 +52,7 @@
 
     <div class="panel-h" style="border:none; background:none; padding:0 0 8px;">
       <h3 style="text-transform:none; letter-spacing:normal; font-size:15px; color:var(--ink); font-weight:600;">On hand by product</h3>
+      <button type="button" class="btn add-btn sm" id="adjustStockBtn" style="margin:0;">+ Adjust stock</button>
       <button type="button" class="btn ghost sm" id="reloadBtn" style="margin:0;">Reload</button>
     </div>
     <div class="panel"><div class="scroll" style="overflow-x:auto;">
@@ -74,11 +75,40 @@
   </div>
 </main>
 
+<dialog id="adjustDialog">
+  <form id="adjustForm"></form>
+</dialog>
+
 <script src="js/config.js?v=2"></script>
 <script src="js/sheets.js?v=1"></script>
 <script src="js/util.js?v=2"></script>
+<script src="js/dialog-guard.js?v=1"></script>
+<script src="js/searchable-select.js?v=1"></script>
 <script>
   let token = null;
+  let products = [];        // cached from the last loadStock(), for the Adjust stock dialog's product picker
+  let lastBatchList = [];   // cached from the last loadStock(), for the Adjust stock dialog's "remove from" batch picker
+  let dirtyCheck = null;    // set while the Adjust stock dialog is open; attachDiscardGuard calls it via a stable wrapper
+
+  const dialogEl = document.getElementById('adjustDialog');
+  const form = document.getElementById('adjustForm');
+  const guard = attachDiscardGuard(dialogEl, { scope: form, isDirtyOverride: () => dirtyCheck ? dirtyCheck() : false });
+
+  function todayIso() { return new Date().toISOString().slice(0, 10); }
+
+  function setDlgStatus(msg, kind) {
+    const el = form.querySelector('#adjustDlgStatus');
+    if (!el) return;
+    el.textContent = msg;
+    el.style.color = kind === 'error' ? 'var(--crit)' : kind === 'ok' ? 'var(--ok)' : 'var(--steel)';
+  }
+
+  async function ensureAuth(statusFn) {
+    const cfg = getStoredConfig();
+    token = tryResumeSession();
+    if (!token || !cfg.spreadsheetId) { (statusFn || setStatus)('Sign in on the Dashboard first.', 'error'); return null; }
+    return cfg;
+  }
 
   function setStatus(msg, kind) {
     const el = document.getElementById('status');
@@ -137,7 +167,7 @@
         sheetsGet(cfg.spreadsheetId, 'Allocations!A:Z', token)
       ]);
 
-      const products = toObjects(productRows);
+      products = toObjects(productRows);
       const deliveries = toObjects(deliveryRows);
       const allocations = toObjects(allocationRows);
 
@@ -174,6 +204,7 @@
 
       const batchList = Object.values(batches).map(b => ({ ...b, remaining: b.qtyReceived - b.qtyAllocated }));
       batchList.sort((a, b) => (a.bbe || '9999').localeCompare(b.bbe || '9999'));
+      lastBatchList = batchList;
 
       // Roll batches up to one row per product.
       const byProduct = {};
@@ -251,6 +282,179 @@
     }).join('');
   }
 
+  // ---- Adjust stock — the only way stock enters/leaves the system outside
+  // a PO delivery or an order allocation. "Add" writes a normal Deliveries
+  // row (blank supplier/PO ID mark it as manual); "Remove" writes an
+  // Allocations row against an existing batch with a synthetic
+  // ORDER LINE ID ('ADJUSTMENT') so it never shows up on any real order's
+  // allocation panel, but still counts against that batch everywhere
+  // on-hand is computed (here, the pickers, stock-take).
+
+  function openAdjustDialog() {
+    renderAdjustForm();
+    dialogEl.showModal();
+    guard.arm();
+  }
+
+  function renderAdjustForm() {
+    const activeProducts = products.filter(p => (p.Active || 'Yes') !== 'No');
+    form.innerHTML = `
+      <div class="dlg-h">
+        <div>
+          <div class="ttl">Adjust stock</div>
+          <div class="subtitle">Add stock found outside a delivery, or remove stock for wastage, damage, or a stock-take correction.</div>
+        </div>
+        <button type="button" class="dlg-close" data-cancel aria-label="Close">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+      </div>
+      <div class="dlg-b">
+        <div class="row">
+          <div class="col field">
+            <label>Product *</label>
+            <select id="adj_product"><option value="">Select a product…</option>${activeProducts.map(p => `<option value="${escapeHtml(p['Product code'])}">${escapeHtml(p['Product name'])} — ${escapeHtml(p['Product code'])}</option>`).join('')}</select>
+          </div>
+          <div class="col field">
+            <label>Type *</label>
+            <select id="adj_type">
+              <option value="add">Add stock</option>
+              <option value="remove">Remove stock</option>
+            </select>
+          </div>
+        </div>
+
+        <div id="adj_addFields">
+          <div class="row">
+            <div class="col field">
+              <label>Quantity *</label>
+              <input type="number" step="any" min="0" id="adj_addQty" placeholder="e.g. 5">
+            </div>
+            <div class="col field">
+              <label>Batch / lot number</label>
+              <input type="text" id="adj_addBatch" placeholder="Leave blank to auto-generate">
+            </div>
+          </div>
+          <div class="field">
+            <label>Best before date</label>
+            <input type="date" id="adj_addBbe">
+          </div>
+        </div>
+
+        <div id="adj_removeFields" style="display:none;">
+          <div class="row">
+            <div class="col field">
+              <label>Batch / lot *</label>
+              <select id="adj_removeBatch"><option value="">Pick a product first…</option></select>
+            </div>
+            <div class="col field">
+              <label>Quantity *</label>
+              <input type="number" step="any" min="0" id="adj_removeQty" placeholder="e.g. 2">
+            </div>
+          </div>
+        </div>
+
+        <div class="field" style="margin-top:12px;">
+          <label id="adj_notesLabel">Notes</label>
+          <textarea id="adj_notes" placeholder="e.g. Opening stock, damaged in transit, stock-take correction"></textarea>
+        </div>
+        <div id="adjustDlgStatus" class="mono" style="margin-top:10px; font-size:12.5px; color:var(--steel);"></div>
+      </div>
+      <div class="dlg-f">
+        <button type="button" class="btn ghost" data-cancel>Cancel</button>
+        <button type="submit" class="btn" id="adjustSubmitBtn">Save adjustment</button>
+      </div>
+    `;
+
+    const productSel = form.querySelector('#adj_product');
+    const typeSel = form.querySelector('#adj_type');
+    enhanceSelect(productSel);
+    toggleAdjustMode('add');
+
+    dirtyCheck = () => !!productSel.value || !!form.querySelector('#adj_addQty').value
+      || !!form.querySelector('#adj_removeQty').value || !!form.querySelector('#adj_notes').value.trim();
+
+    form.onchange = (e) => {
+      if (e.target === typeSel) { toggleAdjustMode(typeSel.value); return; }
+      if (e.target === productSel && typeSel.value === 'remove') { populateRemoveBatches(productSel.value); return; }
+    };
+
+    form.onclick = (e) => {
+      if (e.target.closest('[data-cancel]')) { guard.guardedClose(); return; }
+    };
+
+    form.onsubmit = handleAdjustSubmit;
+  }
+
+  function toggleAdjustMode(mode) {
+    form.querySelector('#adj_addFields').style.display = mode === 'add' ? '' : 'none';
+    form.querySelector('#adj_removeFields').style.display = mode === 'remove' ? '' : 'none';
+    form.querySelector('#adj_notesLabel').textContent = mode === 'remove' ? 'Reason *' : 'Notes';
+    if (mode === 'remove') populateRemoveBatches(form.querySelector('#adj_product').value);
+  }
+
+  function populateRemoveBatches(code) {
+    const sel = form.querySelector('#adj_removeBatch');
+    if (!code) { sel.innerHTML = '<option value="">Pick a product first…</option>'; return; }
+    const batches = lastBatchList.filter(b => b.code === code && b.remaining > 0.0001);
+    if (!batches.length) { sel.innerHTML = '<option value="">No stock on hand for this product</option>'; return; }
+    sel.innerHTML = batches.map(b => `<option value="${escapeHtml(b.batch)}">${escapeHtml(b.batch)} — ${b.remaining.toFixed(2)} ${unitLabel(b.unit)} left${b.bbe ? ', BBE ' + escapeHtml(b.bbe) : ''}</option>`).join('');
+  }
+
+  async function handleAdjustSubmit(e) {
+    e.preventDefault();
+    const cfg = await ensureAuth(setDlgStatus);
+    if (!cfg) return;
+
+    const code = form.querySelector('#adj_product').value;
+    const mode = form.querySelector('#adj_type').value;
+    const notes = form.querySelector('#adj_notes').value.trim();
+    if (!code) { setDlgStatus('Pick a product.', 'error'); return; }
+    const p = products.find(pr => pr['Product code'] === code);
+    const unit = p && p['Pricing basis'] === 'Per kg' ? 'kg' : 'pc';
+
+    if (mode === 'add') {
+      const qty = parseFloat(form.querySelector('#adj_addQty').value);
+      if (!qty || qty <= 0) { setDlgStatus('Enter a quantity.', 'error'); return; }
+      const batch = form.querySelector('#adj_addBatch').value.trim() || `ADJ-${todayIso()}-${code}`;
+      const bbe = form.querySelector('#adj_addBbe').value;
+      setDlgStatus('Saving...');
+      try {
+        const existing = await sheetsGet(cfg.spreadsheetId, 'Deliveries!A:A', token);
+        const id = nextId(existing.length ? existing : [['ID']], 'DEL');
+        await sheetsAppend(cfg.spreadsheetId, 'Deliveries!A:J', [id, todayIso(), '', code, batch, bbe, qty, unit, notes, ''], token);
+        dialogEl.close();
+        setStatus(`Added ${qtyUnit(qty, unit)} of ${code}.`, 'ok');
+        loadStock();
+      } catch (err) {
+        setDlgStatus('Error: ' + err.message, 'error');
+      }
+    } else {
+      const batch = form.querySelector('#adj_removeBatch').value;
+      const qty = parseFloat(form.querySelector('#adj_removeQty').value);
+      if (!batch) { setDlgStatus('Pick a batch to remove from.', 'error'); return; }
+      if (!qty || qty <= 0) { setDlgStatus('Enter a quantity.', 'error'); return; }
+      if (!notes) { setDlgStatus('Enter a reason for the removal.', 'error'); return; }
+      const b = lastBatchList.find(x => x.code === code && x.batch === batch);
+      if (b && qty > b.remaining + 0.0001) { setDlgStatus(`Only ${qtyUnit(roundQty(b.remaining), unit)} left in that batch.`, 'error'); return; }
+      setDlgStatus('Saving...');
+      try {
+        const existing = await sheetsGet(cfg.spreadsheetId, 'Allocations!A:A', token);
+        const id = nextId(existing.length ? existing : [['ID']], 'ALO');
+        await sheetsAppend(cfg.spreadsheetId, 'Allocations!A:G', [id, 'ADJUSTMENT', code, batch, qty, todayIso(), notes], token);
+        dialogEl.close();
+        setStatus(`Removed ${qtyUnit(qty, unit)} of ${code}.`, 'ok');
+        loadStock();
+      } catch (err) {
+        setDlgStatus('Error: ' + err.message, 'error');
+      }
+    }
+  }
+
+  function roundQty(n) {
+    return Math.round(n * 1000) / 1000;
+  }
+
+  document.getElementById('adjustStockBtn').addEventListener('click', openAdjustDialog);
   document.getElementById('reloadBtn').addEventListener('click', loadStock);
   window.addEventListener('load', loadStock);
 </script>

@@ -105,7 +105,7 @@
         <button type="button" class="btn add-btn sm" id="rapidBtn" style="margin:0;">Next uncounted item</button>
         <button type="button" class="btn ghost sm" id="printBtn" style="margin:0;">Print</button>
         <button type="button" class="btn ghost sm" id="reloadBtn" style="margin:0;">Reload</button>
-        <button type="button" class="btn danger sm" id="completeBtn" style="margin:0; margin-left:auto;">Complete stock take</button>
+        <button type="button" class="btn danger sm" id="completeBtn" style="margin:0; margin-left:auto;">Apply corrections &amp; complete</button>
       </div>
       <div class="row" id="progressStats" style="margin-bottom:10px;"></div>
       <div class="bar" style="margin-bottom:16px;" id="progressBarWrap"><i id="progressBar" style="width:0%;"></i></div>
@@ -418,16 +418,109 @@
   }
 
   async function completeStockTake() {
-    if (!confirm(`Mark ${stockTake.obj.ID} as complete? You can still review it under Past stock takes afterwards.`)) return;
+    if (!confirm(`Mark ${stockTake.obj.ID} as complete? This applies every counted item's variance to stock (adding what's over, removing what's short from the oldest lots first), then closes the take. You can still review it under Past stock takes afterwards.`)) return;
     const cfg = await ensureAuth();
     if (!cfg) return;
+    setStatus('Applying corrections...');
     try {
+      const summary = await applyStockTakeCorrections(cfg);
       await sheetsUpdateRange(cfg.spreadsheetId, `StockTakes!C${stockTake.rowNumber}:C${stockTake.rowNumber}`, [['Completed']], token, 'USER_ENTERED');
-      setStatus(`${stockTake.obj.ID} marked complete.`, 'ok');
+      setStatus(`${stockTake.obj.ID} marked complete. ${summary}`, 'ok');
       loadAll();
     } catch (err) {
       setStatus('Error: ' + err.message, 'error');
     }
+  }
+
+  // Applies every counted line's variance (counted − system) to real stock,
+  // so completing a take actually corrects what the rest of the app (Stock,
+  // the Order/PO pickers, future takes) believes is on hand — not just
+  // records what was counted. A surplus becomes a new Deliveries batch; a
+  // shortfall is removed FEFO from existing batches via Allocations, using
+  // the same 'ADJUSTMENT' ORDER LINE ID marker as stock.html's manual
+  // adjustments (so it never shows up on any real order's allocation panel).
+  async function applyStockTakeCorrections(cfg) {
+    const variances = lines
+      .filter(l => isCounted(l.obj))
+      .map(l => ({ line: l, variance: parseFloat(l.obj['COUNTED QTY']) - (parseFloat(l.obj['SYSTEM QTY']) || 0) }))
+      .filter(v => Math.abs(v.variance) > 0.0001);
+    if (!variances.length) return 'No corrections needed — every counted item matched.';
+
+    const [deliveryRows, allocationRows] = await Promise.all([
+      sheetsGet(cfg.spreadsheetId, 'Deliveries!A:Z', token),
+      sheetsGet(cfg.spreadsheetId, 'Allocations!A:Z', token)
+    ]);
+    const fefoBatches = computeFefoBatches(deliveryRows, allocationRows);
+    let delBase = deliveryRows.length ? deliveryRows : [['ID']];
+    let alloBase = allocationRows.length ? allocationRows : [['ID']];
+
+    const deliveryRowsToAppend = [];
+    const allocationRowsToAppend = [];
+    let up = 0, down = 0, short = 0;
+    const notes = `Stock take ${stockTake.obj.ID} correction`;
+
+    variances.forEach(({ line, variance }) => {
+      const code = line.obj['PRODUCT CODE'];
+      const unit = line.obj.UNIT;
+      if (variance > 0) {
+        const id = nextId(delBase, 'DEL');
+        delBase = delBase.concat([[id]]);
+        deliveryRowsToAppend.push([id, todayIso(), '', code, `ADJ-${stockTake.obj.ID}-${code}`, '', variance, unit, notes, '']);
+        up++;
+      } else {
+        let deficit = -variance;
+        const batches = fefoBatches[code] || [];
+        for (const b of batches) {
+          if (deficit <= 0.0001) break;
+          const take = Math.min(b.remaining, deficit);
+          if (take <= 0.0001) continue;
+          const id = nextId(alloBase, 'ALO');
+          alloBase = alloBase.concat([[id]]);
+          allocationRowsToAppend.push([id, 'ADJUSTMENT', code, b.batch, take, todayIso(), notes]);
+          b.remaining -= take;
+          deficit -= take;
+        }
+        if (deficit > 0.0001) short++;
+        down++;
+      }
+    });
+
+    if (deliveryRowsToAppend.length) await sheetsAppendRows(cfg.spreadsheetId, 'Deliveries!A:J', deliveryRowsToAppend, token);
+    if (allocationRowsToAppend.length) await sheetsAppendRows(cfg.spreadsheetId, 'Allocations!A:G', allocationRowsToAppend, token);
+
+    let msg = `${variances.length} correction(s) applied (${up} up, ${down} down).`;
+    if (short) msg += ` ${short} product(s) had less recorded stock than the shortfall — reduced to zero rather than going negative.`;
+    return msg;
+  }
+
+  // Same batch math as computeLotsByProduct, but keyed with best-before
+  // date and FEFO-sorted (soonest-expiring first, no date last) — a
+  // shortfall should come out of the stock that would go off soonest, same
+  // logic orders.html uses when allocating stock to an order line. Mutates
+  // each batch's `remaining` in place as applyStockTakeCorrections spends it.
+  function computeFefoBatches(deliveryRows, allocationRows) {
+    const deliveries = toObjects(deliveryRows);
+    const allocations = toObjects(allocationRows);
+    const key = (code, batch) => `${code}${batch}`;
+    const batches = {};
+    deliveries.forEach(d => {
+      const k = key(d['PRODUCT CODE'], d['BATCH/LOT NUMBER']);
+      if (!batches[k]) batches[k] = { code: d['PRODUCT CODE'], batch: d['BATCH/LOT NUMBER'], bbe: d['BEST BEFORE DATE'], received: 0, allocated: 0 };
+      batches[k].received += parseFloat(d['QTY RECEIVED']) || 0;
+      if (d['BEST BEFORE DATE'] && (!batches[k].bbe || d['BEST BEFORE DATE'] < batches[k].bbe)) batches[k].bbe = d['BEST BEFORE DATE'];
+    });
+    allocations.forEach(a => {
+      const k = key(a['PRODUCT CODE'], a['BATCH/LOT NUMBER']);
+      if (batches[k]) batches[k].allocated += parseFloat(a['QTY ALLOCATED']) || 0;
+    });
+    const byProduct = {};
+    Object.values(batches).forEach(b => {
+      const remaining = b.received - b.allocated;
+      if (remaining <= 0.0001) return;
+      (byProduct[b.code] = byProduct[b.code] || []).push({ batch: b.batch, bbe: b.bbe, remaining });
+    });
+    Object.values(byProduct).forEach(list => list.sort((a, b) => (a.bbe || '9999').localeCompare(b.bbe || '9999')));
+    return byProduct;
   }
 
   // ---- active stock take: table + progress ----

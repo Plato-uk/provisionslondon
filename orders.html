@@ -83,7 +83,8 @@
   let allocationsData = []; // [{ rowNumber, obj }] from Allocations
   let deliveriesData = [];  // [{ rowNumber, obj }] from Deliveries — source of what's in stock, per lot
   let sheetIds = {};         // tab name -> sheetId, lazily populated (needed to delete an allocation row)
-  let draftLines = [];       // New Order wizard's working line items
+  let draftLines = [];       // working line items being staged — New Order wizard, or "add product" in the View dialog
+  let activeSummaryId = 'ord_orderSummary'; // which dialog's summary element renderOrderSummary() writes to, set by renderProductPicker()
   let expandedLineId = null; // which order line's allocation panel is open in the View dialog
   let dirtyCheck = null;     // set per dialog mode; attachDiscardGuard calls it via a stable wrapper
 
@@ -326,15 +327,20 @@
 
   // Every Active product, grouped by category — no supplier scoping (unlike
   // the PO picker), since a customer order can include anything sellable.
-  function renderProductPicker() {
-    const mount = form.querySelector('#ord_productPicker');
-    let orderProducts = products.filter(p => (p.Active || 'Yes') !== 'No');
+  // Shared by the New Order wizard and the View dialog's "add product"
+  // picker: `mountId`/`searchId`/`summaryId` point at whichever dialog is
+  // open, and `excludeCodes` keeps products already on the order out of the
+  // View dialog's picker (irrelevant — always empty — for a brand-new order).
+  function renderProductPicker(mountId = 'ord_productPicker', searchId = 'ord_productSearch', excludeCodes = [], summaryId = 'ord_orderSummary') {
+    activeSummaryId = summaryId;
+    const mount = form.querySelector(`#${mountId}`);
+    let orderProducts = products.filter(p => (p.Active || 'Yes') !== 'No' && !excludeCodes.includes(p['Product code']));
     if (!orderProducts.length) {
-      mount.innerHTML = `<div class="empty" style="padding:12px 0;">No products set up yet.</div>`;
+      mount.innerHTML = `<div class="empty" style="padding:12px 0;">${excludeCodes.length ? 'Every active product is already on this order.' : 'No products set up yet.'}</div>`;
       renderOrderSummary();
       return;
     }
-    const term = (form.querySelector('#ord_productSearch').value || '').trim().toLowerCase();
+    const term = (form.querySelector(`#${searchId}`).value || '').trim().toLowerCase();
     if (term) {
       orderProducts = orderProducts.filter(p =>
         (p['Product name'] || '').toLowerCase().includes(term) || (p['Product code'] || '').toLowerCase().includes(term));
@@ -363,7 +369,7 @@
   }
 
   function renderOrderSummary() {
-    const el = form.querySelector('#ord_orderSummary');
+    const el = form.querySelector(`#${activeSummaryId}`);
     if (!el) return;
     if (!draftLines.length) { el.textContent = ''; return; }
     el.textContent = `${draftLines.length} item${draftLines.length === 1 ? '' : 's'} added`;
@@ -535,10 +541,9 @@
 
   function renderViewForm(order) {
     dirtyCheck = null; // every action here (allocate/remove/status) saves immediately — nothing unsaved to lose
+    draftLines = []; // staged "add product" picks — never carries over between opens/refreshes of this dialog
     const lines = orderLinesData.filter(l => l.obj['ORDER ID'] === order.obj.ID);
-    const orderProducts = products
-      .filter(p => (p.Active || 'Yes') !== 'No')
-      .filter(p => !lines.some(l => l.obj['PRODUCT CODE'] === p['Product code']));
+    const excludeCodes = lines.map(l => l.obj['PRODUCT CODE']);
 
     form.innerHTML = `
       <div class="dlg-h">
@@ -566,20 +571,11 @@
 
         <div class="field" style="margin-top:12px;">
           <label>Add product to this order</label>
-          <div class="inline">
-            <div class="field" style="flex:2; margin-bottom:0;">
-              <select id="ord_view_addProduct">
-                <option value="">${orderProducts.length ? 'Search by name or code…' : 'No other products to add'}</option>
-                ${orderProducts.map(p => `<option value="${escapeHtml(p['Product code'])}">${escapeHtml(p['Product name'])} — ${escapeHtml(p['Product code'])}</option>`).join('')}
-              </select>
-            </div>
-            <div class="field" style="max-width:90px; margin-bottom:0;">
-              <input type="number" step="any" id="ord_view_addQty" placeholder="Qty">
-            </div>
-            <div class="field" style="max-width:80px; margin-bottom:0;">
-              <select id="ord_view_addUnit"><option value="kg">kg</option><option value="pc">Pieces</option></select>
-            </div>
-            <button type="button" class="btn ghost sm" id="ord_view_addLineBtn">+ Add</button>
+          <input type="search" id="ord_view_productSearch" placeholder="Search products by name or code..." style="margin-bottom:10px;">
+          <div id="ord_view_productPicker"></div>
+          <div style="display:flex; align-items:center; justify-content:space-between; margin-top:10px;">
+            <div id="ord_view_addSummary" class="mono" style="font-size:13px; color:var(--steel);"></div>
+            <button type="button" class="btn ghost sm" id="ord_view_addLinesBtn">+ Add to order</button>
           </div>
         </div>
 
@@ -590,16 +586,27 @@
         <button type="button" class="btn ghost" data-cancel>Close</button>
       </div>
     `;
-    enhanceSelect(form.querySelector('#ord_view_addProduct'));
+    renderProductPicker('ord_view_productPicker', 'ord_view_productSearch', excludeCodes, 'ord_view_addSummary');
+    const viewSearchInput = form.querySelector('#ord_view_productSearch');
+    viewSearchInput.addEventListener('input', () => renderProductPicker('ord_view_productPicker', 'ord_view_productSearch', excludeCodes, 'ord_view_addSummary'));
 
     form.onsubmit = (e) => e.preventDefault();
     form.onchange = (e) => {
       if (e.target.id === 'ord_statusSel') handleStatusChange(order, e.target.value);
     };
+    form.oninput = (e) => {
+      const qtyInput = e.target.closest('.stepper-qty-input');
+      if (qtyInput) handleQtyInput(qtyInput.dataset.code);
+    };
+    form.addEventListener('focus', (e) => {
+      if (e.target.classList && e.target.classList.contains('stepper-qty-input')) e.target.select();
+    }, true);
     form.onclick = (e) => {
       if (e.target.closest('[data-cancel]')) { guard.guardedClose(); return; }
       if (e.target.closest('[data-delete-order]')) { handleDeleteOrder(order); return; }
-      if (e.target.closest('#ord_view_addLineBtn')) { handleAddLineToOrder(order); return; }
+      if (e.target.closest('#ord_view_addLinesBtn')) { handleAddLinesToOrder(order); return; }
+      const stepBtn = e.target.closest('[data-step]');
+      if (stepBtn) { adjustDraftQty(stepBtn.dataset.code, parseInt(stepBtn.dataset.step, 10)); return; }
       const toggleBtn = e.target.closest('[data-toggle-alloc]');
       if (toggleBtn) {
         const lineId = toggleBtn.dataset.toggleAlloc;
@@ -757,23 +764,21 @@
     }
   }
 
-  async function handleAddLineToOrder(order) {
-    const codeSel = form.querySelector('#ord_view_addProduct');
-    const qtyInput = form.querySelector('#ord_view_addQty');
-    const unitSel = form.querySelector('#ord_view_addUnit');
-    const code = codeSel.value;
-    const qty = parseFloat(qtyInput.value);
-    const unit = unitSel.value;
-    if (!code) { setDlgStatus('Pick a product first.', 'error'); return; }
-    if (!qty || qty <= 0) { setDlgStatus('Enter a quantity.', 'error'); return; }
-
+  async function handleAddLinesToOrder(order) {
+    if (!draftLines.length) { setDlgStatus('Pick at least one product first.', 'error'); return; }
     const cfg = await ensureAuth(setDlgStatus);
     if (!cfg) return;
-    setDlgStatus('Adding product...');
+    setDlgStatus('Adding to order...');
     try {
       const existingLines = await sheetsGet(cfg.spreadsheetId, 'OrderLines!A:A', token);
-      const lineId = nextId(existingLines.length ? existingLines : [['ID']], 'OL');
-      await sheetsAppend(cfg.spreadsheetId, 'OrderLines!A:G', [lineId, order.obj.ID, code, qty, unit, 'New', ''], token);
+      let base = existingLines.length ? existingLines : [['ID']];
+      const lineRows = draftLines.map(l => {
+        const lineId = nextId(base, 'OL');
+        base = base.concat([[lineId]]);
+        return [lineId, order.obj.ID, l.code, l.qty, l.unit, 'New', ''];
+      });
+      await sheetsAppendRows(cfg.spreadsheetId, 'OrderLines!A:G', lineRows, token);
+      draftLines = [];
       await refreshAfterAllocationChange(order.obj.ID);
     } catch (err) {
       setDlgStatus('Error: ' + err.message, 'error');
